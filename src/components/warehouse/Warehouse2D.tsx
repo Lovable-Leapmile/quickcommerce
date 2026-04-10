@@ -421,11 +421,26 @@ export function Warehouse2D({
     amrLoopRunning.current = true;
     amrLastTimeRef.current = performance.now();
 
-    const MIN_GAP = 0.4;
-    const STOP_DIST = MIN_GAP + 0.15;
-    const LANE_SWITCH_WAIT = 0.5;
-    const BRANCH_YIELD_WAIT = 0.3; // seconds before yielding on a branch
+    const loop = () => {
+      const now = performance.now();
+      const delta = Math.min((now - amrLastTimeRef.current) / 1000, 0.05);
+      amrLastTimeRef.current = now;
 
+      const AMR_SPEED = 0.5;
+      const PICKUP_DURATION = 0.8;
+      const DROPOFF_DURATION = 0.8;
+
+      const MIN_GAP = 0.4;
+      const STOP_DIST = MIN_GAP + 0.15;
+      const LANE_SWITCH_WAIT = 0.5;
+      const BRANCH_YIELD_WAIT = 0.3;
+
+      // Collect positions for collision checking
+      const positions: { id: number; mx: number; my: number; stopped: boolean; active: boolean }[] = [];
+      amrAnimMapRef.current.forEach((st, id) => {
+        const active = st.phase !== "idle" && st.phase !== "done";
+        positions.push({ id, mx: st.mx, my: st.my, stopped: st.stopped, active });
+      });
 
     // Check if AGV should stop
     const checkBlocked = (

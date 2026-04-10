@@ -426,13 +426,6 @@ export function Warehouse2D({
     const LANE_SWITCH_WAIT = 0.5;
     const BRANCH_YIELD_WAIT = 0.3; // seconds before yielding on a branch
 
-    // Detect if a position is on a branch path (narrow single-lane to station/delivery)
-    // Branch paths are off the main perimeter grid — they connect stations/delivery to the main loop
-    const isBranchPath = (mx: number, my: number): boolean => {
-      // If AGV is to the left of the left vertical lane, it's on a packing branch
-      // We can't access pathLeftM etc here, but we can check based on waypoint context
-      return false; // Will be checked via phase instead
-    };
 
     // Check if AGV should stop
     const checkBlocked = (

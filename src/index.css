@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 225 25% 10%;
+    --foreground: 210 20% 90%;
+
+    --card: 225 20% 14%;
+    --card-foreground: 210 20% 90%;
+
+    --popover: 225 20% 14%;
+    --popover-foreground: 210 20% 90%;
+
+    --primary: 210 100% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 225 15% 20%;
+    --secondary-foreground: 210 20% 85%;
+
+    --muted: 225 15% 18%;
+    --muted-foreground: 215 15% 55%;
+
+    --accent: 170 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 225 15% 22%;
+    --input: 225 15% 22%;
+    --ring: 210 100% 55%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 225 22% 12%;
+    --sidebar-foreground: 210 20% 85%;
+    --sidebar-primary: 210 100% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 225 15% 18%;
+    --sidebar-accent-foreground: 210 20% 85%;
+    --sidebar-border: 225 15% 22%;
+    --sidebar-ring: 210 100% 55%;
+
+    --warehouse-floor: 225 15% 16%;
+    --warehouse-rack: 210 60% 50%;
+    --warehouse-grid: 225 15% 25%;
+    --label-color: 170 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}

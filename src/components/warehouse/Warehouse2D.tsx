@@ -2019,7 +2019,17 @@ export function Warehouse2D({
     const dx = e.clientX - lastMouse.current.x;
     const dy = e.clientY - lastMouse.current.y;
     lastMouse.current = { x: e.clientX, y: e.clientY };
-    setTransform((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
+    if (moveRobotMode) {
+      // In move-robot mode, drag moves the warehouse platform, not the camera
+      // Convert screen delta to world-space delta (account for scale and rotation)
+      const cos = Math.cos(transform.rotation);
+      const sin = Math.sin(transform.rotation);
+      const worldDx = (dx * cos + dy * sin) / transform.scale;
+      const worldDy = (-dx * sin + dy * cos) / transform.scale;
+      setWarehouseOffset((o) => ({ x: o.x + worldDx, y: o.y + worldDy }));
+    } else {
+      setTransform((t) => ({ ...t, x: t.x + dx, y: t.y + dy }));
+    }
   };
 
   const onMouseUp = (e: React.MouseEvent) => {

@@ -769,18 +769,26 @@ export function Warehouse2D({
 
     const rot = transform.rotation;
     // Normalize angle to [0, 2π)
-    const normRot = ((rot % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    // If the canvas is rotated so text would be upside-down, flip 180°
-    const textFlip = (normRot > Math.PI / 2 && normRot < 3 * Math.PI / 2) ? Math.PI : 0;
+    const normalizeAngle = (a: number) => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
 
-    // Helper: draw text that flips 180° when warehouse is upside-down
+    // Helper: draw text that flips 180° when it would appear upside-down
     const drawReadableText = (text: string, x: number, y: number, extraRotation = 0) => {
+      // Total world angle of the text = canvas rotation + extra rotation
+      const totalAngle = normalizeAngle(rot + extraRotation);
+      // Flip 180° if text would be upside-down
+      const flip = (totalAngle > Math.PI / 2 && totalAngle < 3 * Math.PI / 2) ? Math.PI : 0;
       ctx.save();
       ctx.translate(x, y);
-      ctx.rotate(textFlip + extraRotation);
+      ctx.rotate(flip + extraRotation);
       ctx.fillText(text, 0, 0);
       ctx.restore();
     };
+
+    // For AGV labels / tooltip (no extraRotation)
+    const textFlip = (() => {
+      const n = normalizeAngle(rot);
+      return (n > Math.PI / 2 && n < 3 * Math.PI / 2) ? Math.PI : 0;
+    })();
 
     const padding = 60;
 

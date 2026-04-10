@@ -823,8 +823,8 @@ export function Warehouse2D({
 
     const siteW = params.length * ppm;
     const siteH = params.width * ppm;
-    const siteX = originX - siteW / 2;
-    const siteY = originY - siteH / 2;
+    const siteX = originX - siteW / 2 + warehouseOffset.x;
+    const siteY = originY - siteH / 2 + warehouseOffset.y;
 
     // ====== Grid Lines covering entire visible canvas (0.5m spacing) ======
     const gridSpacingM = 0.5;
@@ -2070,7 +2070,7 @@ export function Warehouse2D({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full cursor-grab active:cursor-grabbing"
+      className={`relative w-full h-full ${moveRobotMode ? "cursor-move" : "cursor-grab active:cursor-grabbing"}`}
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}

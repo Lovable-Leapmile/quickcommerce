@@ -1870,7 +1870,7 @@ export function Warehouse2D({
       // AGV label (counter-rotated to stay readable)
       ctx.save();
       ctx.translate(amrX, amrY - drawH / 2 - 2);
-      ctx.rotate(-rot);
+      ctx.rotate(textFlip);
       ctx.font = "bold 8px monospace";
       const labelColor = isStopped ? "hsl(0, 90%, 70%)" : "hsl(30, 90%, 70%)";
       ctx.textAlign = "center";
@@ -1933,7 +1933,7 @@ export function Warehouse2D({
 
       ctx.save();
       ctx.translate(tipX + 10, tipY - lblH / 2 - 5);
-      ctx.rotate(-rot);
+      ctx.rotate(textFlip);
 
       ctx.fillStyle = "hsl(225, 20%, 15%)";
       ctx.beginPath();

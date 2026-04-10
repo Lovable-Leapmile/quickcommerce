@@ -767,6 +767,16 @@ export function Warehouse2D({
     ctx.scale(transform.scale, transform.scale);
     ctx.rotate(transform.rotation);
 
+    const rot = transform.rotation;
+    // Helper: draw text that stays human-readable regardless of canvas rotation
+    const drawReadableText = (text: string, x: number, y: number, extraRotation = 0) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(-rot + extraRotation);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+    };
+
     const padding = 60;
 
     // Stations config - vertical column parallel to AMR path
@@ -879,12 +889,12 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     for (let gx = 0; gx <= params.length; gx += 2) {
-      ctx.fillText(`${gx}`, siteX + gx * ppm, siteY - 12);
+      drawReadableText(`${gx}`, siteX + gx * ppm, siteY - 12);
     }
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let gy = 0; gy <= params.width; gy += 2) {
-      ctx.fillText(`${gy}`, siteX - 5, siteY + gy * ppm);
+      drawReadableText(`${gy}`, siteX - 5, siteY + gy * ppm);
     }
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
@@ -900,12 +910,8 @@ export function Warehouse2D({
     ctx.fillStyle = "hsl(170, 70%, 50%)";
     ctx.font = "12px monospace";
     ctx.textAlign = "center";
-    ctx.fillText(`${params.length}m`, siteX + siteW / 2, siteY + siteH + 20);
-    ctx.save();
-    ctx.translate(siteX - 25, siteY + siteH / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText(`${params.width}m`, 0, 0);
-    ctx.restore();
+    drawReadableText(`${params.length}m`, siteX + siteW / 2, siteY + siteH + 20);
+    drawReadableText(`${params.width}m`, siteX - 25, siteY + siteH / 2, -Math.PI / 2);
 
     const layoutW = contentW * ppm;
     const layoutH = contentH * ppm;
@@ -1085,15 +1091,11 @@ export function Warehouse2D({
     }
 
     // "Packing Area" label (vertical)
-    ctx.save();
     ctx.font = "bold 11px monospace";
     ctx.fillStyle = "hsl(270, 50%, 65%)";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.translate(stationsX - 12, stationsStartY + totalStationsH / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText("Packing Area", 0, 0);
-    ctx.restore();
+    drawReadableText("Packing Area", stationsX - 12, stationsStartY + totalStationsH / 2, -Math.PI / 2);
 
     // ====== Single Delivery Station at top near x=5m, y=2m ======
     const deliveryWPx = deliveryW_m * ppm;
@@ -1168,13 +1170,11 @@ export function Warehouse2D({
     }
 
     // "Delivery Area" label
-    ctx.save();
     ctx.font = "bold 11px monospace";
     ctx.fillStyle = "hsl(160, 50%, 65%)";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText("Delivery Area", deliveryCenterX, deliveryDy - 8);
-    ctx.restore();
+    drawReadableText("Delivery Area", deliveryCenterX, deliveryDy - 8);
 
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;
@@ -1251,15 +1251,11 @@ export function Warehouse2D({
     }
 
     // "AGV Parking" label (vertical, right of parking)
-    ctx.save();
     ctx.font = "bold 10px monospace";
     ctx.fillStyle = "hsl(30, 60%, 65%)";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.translate(parkingX + parkingSpotWPx + 14, parkingStartY + totalParkingH / 2);
-    ctx.rotate(-Math.PI / 2);
-    ctx.fillText("AGV Parking", 0, 0);
-    ctx.restore();
+    drawReadableText("AGV Parking", parkingX + parkingSpotWPx + 14, parkingStartY + totalParkingH / 2, -Math.PI / 2);
 
     let currentY = startY;
 
@@ -1866,10 +1862,12 @@ export function Warehouse2D({
 
       ctx.restore();
 
-      // AGV label (unrotated)
+      // AGV label (counter-rotated to stay readable)
+      ctx.save();
+      ctx.translate(amrX, amrY - drawH / 2 - 2);
+      ctx.rotate(-rot);
       ctx.font = "bold 8px monospace";
       const labelColor = isStopped ? "hsl(0, 90%, 70%)" : "hsl(30, 90%, 70%)";
-      ctx.fillStyle = labelColor;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       const label = `AGV ${agv.agv_id}`;
@@ -1877,8 +1875,8 @@ export function Warehouse2D({
       const lblPad = 3;
       const lblBgW = lblMetrics.width + lblPad * 2;
       const lblBgH = 12;
-      const lblBgX = amrX - lblBgW / 2;
-      const lblBgY = amrY - drawH / 2 - lblBgH - 2;
+      const lblBgX = -lblBgW / 2;
+      const lblBgY = -lblBgH;
       ctx.fillStyle = "hsl(225, 20%, 18%)";
       ctx.beginPath();
       ctx.roundRect(lblBgX, lblBgY, lblBgW, lblBgH, 2);
@@ -1888,7 +1886,8 @@ export function Warehouse2D({
       ctx.stroke();
       ctx.fillStyle = labelColor;
       ctx.textBaseline = "middle";
-      ctx.fillText(label, amrX, lblBgY + lblBgH / 2);
+      ctx.fillText(label, 0, lblBgY + lblBgH / 2);
+      ctx.restore();
     }
 
     // Store grid info for click handler
@@ -1919,19 +1918,21 @@ export function Warehouse2D({
       ctx.arc(tipX, tipY, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Label
+      // Label (counter-rotated)
       const label = `X: ${coordTooltip.mx.toFixed(2)}m  Y: ${coordTooltip.my.toFixed(2)}m`;
       ctx.font = "bold 11px monospace";
       const metrics = ctx.measureText(label);
       const padX = 6;
       const lblW = metrics.width + padX * 2;
       const lblH = 18;
-      let lblX = tipX + 10;
-      let lblY = tipY - lblH - 5;
+
+      ctx.save();
+      ctx.translate(tipX + 10, tipY - lblH / 2 - 5);
+      ctx.rotate(-rot);
 
       ctx.fillStyle = "hsl(225, 20%, 15%)";
       ctx.beginPath();
-      ctx.roundRect(lblX, lblY, lblW, lblH, 3);
+      ctx.roundRect(0, -lblH / 2, lblW, lblH, 3);
       ctx.fill();
       ctx.strokeStyle = "hsl(50, 90%, 60%)";
       ctx.lineWidth = 1;
@@ -1940,7 +1941,8 @@ export function Warehouse2D({
       ctx.fillStyle = "hsl(50, 90%, 70%)";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(label, lblX + padX, lblY + lblH / 2);
+      ctx.fillText(label, padX, 0);
+      ctx.restore();
     }
 
     ctx.restore();

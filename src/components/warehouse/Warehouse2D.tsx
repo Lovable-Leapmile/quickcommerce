@@ -482,9 +482,6 @@ export function Warehouse2D({
           const otherSt = amrAnimMapRef.current.get(other.id);
           if (otherSt) {
             const otherPhase = otherSt.phase;
-            // Head-on on branch: one going to station, other returning
-            const isOnBranch = (phase === "to_source" || phase === "to_station") &&
-              (otherPhase === "return_to_idle" || otherPhase === "to_station" || otherPhase === "to_source");
 
             // Check if they're moving toward each other (head-on)
             let otherTarget: { mx: number; my: number } | null = null;

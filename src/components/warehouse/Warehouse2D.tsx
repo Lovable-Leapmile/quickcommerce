@@ -746,6 +746,60 @@ export function Warehouse2D({
         }
       });
 
+      // Check consolidation timers — 6 seconds after last drop, consolidate to center blue slot
+      const now2 = performance.now();
+      const CONSOLIDATION_DELAY = 6000; // 6 seconds
+      consolidationTimersRef.current.forEach((timer, stationIdx) => {
+        if (now2 - timer.startTime >= CONSOLIDATION_DELAY && !deliveryReadyStationsRef.current.has(stationIdx)) {
+          // Consolidate: clear all non-center filled slots for this station, mark center as delivery-ready
+          const centerIdx = Math.floor(PACKING_SLOTS_PER_STATION / 2);
+          setFilledPackingSlots((prev) => {
+            const next = new Set(prev);
+            for (let c = 0; c < PACKING_SLOTS_PER_STATION; c++) {
+              if (c !== centerIdx) next.delete(`${stationIdx}-${c}`);
+            }
+            return next;
+          });
+          setDeliveryReadyStations((prev) => {
+            const next = new Set(prev);
+            next.add(stationIdx);
+            return next;
+          });
+          // Queue auto-delivery for this station
+          pendingDeliveryRef.current.push(stationIdx);
+          consolidationTimersRef.current.delete(stationIdx);
+        }
+      });
+
+      // Auto-dispatch delivery AGV for pending deliveries
+      if (pendingDeliveryRef.current.length > 0) {
+        const deliveryAgvId = getDeliveryAgvId();
+        const deliverySt = amrAnimMapRef.current.get(deliveryAgvId);
+        const isIdle = !deliverySt || deliverySt.phase === "idle" || deliverySt.phase === "done";
+        if (isIdle && pendingDeliveryRef.current.length > 0) {
+          const stationIdx = pendingDeliveryRef.current.shift()!;
+          // Create internal delivery order: pick from packing station center → deliver to delivery area
+          const deliveryOrder: AMROrder = {
+            agvId: deliveryAgvId,
+            sourceStation: stationIdx + 1,
+            flowType: "station-to-delivery",
+            destIsDelivery: true,
+            manualMode: false,
+          };
+          const st = createDefaultAMRState();
+          st.phase = "to_source";
+          st.order = deliveryOrder;
+          st.orderQueue = [];
+          st.initialized = deliverySt?.initialized ?? false;
+          st.mx = deliverySt?.mx ?? 0;
+          st.my = deliverySt?.my ?? 0;
+          // Mark as delivery segment
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "right-vertical";
+          amrAnimMapRef.current.set(deliveryAgvId, st);
+          anyActive = true;
+        }
+      }
+
       drawCanvasRef.current();
 
       if (anyActive) {
@@ -755,7 +809,7 @@ export function Warehouse2D({
       }
     };
     amrRafRef.current = requestAnimationFrame(loop);
-  }, [onAMRComplete]);
+  }, [onAMRComplete, getDeliveryAgvId]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;

@@ -1750,6 +1750,8 @@ export function Warehouse2D({
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
+        // After dropping at station, AGV will be on a station branch
+        amrSt.currentSegmentKind = "station-branch";
       } else {
         // ====== NEW FLOW: packing station → delivery area ======
         const agvLaneLocal = getAgvLane(agvId);
@@ -1807,6 +1809,7 @@ export function Warehouse2D({
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
+        amrSt.currentSegmentKind = "right-vertical"; // returns to parking
       }
     });
 

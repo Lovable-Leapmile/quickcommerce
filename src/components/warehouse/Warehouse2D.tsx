@@ -678,13 +678,23 @@ export function Warehouse2D({
               st.targetPackingStationIdx >= 0 &&
               st.targetPackingSlotIdx >= 0
             ) {
-              const key = `${st.targetPackingStationIdx}-${st.targetPackingSlotIdx}`;
+              const stIdx = st.targetPackingStationIdx;
+              const key = `${stIdx}-${st.targetPackingSlotIdx}`;
               setFilledPackingSlots((prev) => {
                 const next = new Set(prev);
                 next.add(key);
                 return next;
               });
               reservedPackingSlotsRef.current.delete(key);
+
+              // Start or update consolidation timer for this station
+              const existing = consolidationTimersRef.current.get(stIdx);
+              if (existing) {
+                existing.startTime = performance.now();
+                existing.itemCount += 1;
+              } else {
+                consolidationTimersRef.current.set(stIdx, { startTime: performance.now(), itemCount: 1 });
+              }
             }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {

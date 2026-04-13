@@ -735,6 +735,8 @@ export function Warehouse2D({
               }
               // Reset station item count
               stationItemCountRef.current.delete(srcStation);
+              // Notify parent that delivery is complete
+              onDeliveryComplete?.();
             }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {

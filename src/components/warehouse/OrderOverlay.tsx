@@ -84,8 +84,7 @@ export function OrderOverlay({
       }
     });
 
-    onExecute({ shuttleOrders, amrOrders, agvCount });
-  };
+    onExecute({ shuttleOrders, amrOrders, agvCount, orderId: order.order_id });
 
   if (ordersLoading || orders.length === 0) return null;
 

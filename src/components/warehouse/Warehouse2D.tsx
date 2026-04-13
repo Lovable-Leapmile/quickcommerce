@@ -275,7 +275,21 @@ export function Warehouse2D({
       shuttleAnimMapRef.current.clear();
       setRemovedTrays(new Set());
       setPlacedTrays([]);
+      trayItemLabelsRef.current.clear();
       return;
+    }
+
+    // Build tray item labels map from source locations
+    trayItemLabelsRef.current.clear();
+    for (const order of movementOrders) {
+      if (order.itemIndex) {
+        const src = order.source;
+        const { aisleIdx } = rowToAisleSide(src.row);
+        const srcRack = src.rack - 1;
+        const srcDeepOffset = getDeepOffset(src);
+        const key = `${aisleIdx}-${srcRack}-${srcDeepOffset}`;
+        trayItemLabelsRef.current.set(key, order.itemIndex);
+      }
     }
 
     // Group orders by source aisle

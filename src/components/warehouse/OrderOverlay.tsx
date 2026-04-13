@@ -29,6 +29,7 @@ export function OrderOverlay({
   onExecute,
   amrSpeed,
   onAmrSpeedChange,
+  completedTimes = {},
 }: OrderOverlayProps) {
   const [agvCounts, setAgvCounts] = useState<Record<number, number>>({});
   const [speedOpen, setSpeedOpen] = useState(false);

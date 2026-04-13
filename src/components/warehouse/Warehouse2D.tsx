@@ -1275,7 +1275,7 @@ export function Warehouse2D({
         const cy2 = deliveryDy + slotPadY;
         const cw = slotW;
 
-        const isFilled = c % 3 === 0;
+        const isFilled = filledDeliverySlotsRef.current.has(c);
         ctx.fillStyle = isFilled ? trayColor : "hsl(160, 14%, 18%)";
         ctx.beginPath();
         ctx.roundRect(cx2, cy2, cw, slotD, 3);

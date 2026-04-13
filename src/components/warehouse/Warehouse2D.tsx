@@ -1166,16 +1166,14 @@ export function Warehouse2D({
       }
     }
 
-    // Delivery slot paths: single-line branches per slot, with spacing from the top AMR lane
-    const deliveryCenterX = deliveryDx + deliveryWPx / 2;
-    const deliverySlotPathGap = 1.0 * ppm;
-    const deliveryBranchY = pathCenterTop - deliverySlotPathGap;
+    // Delivery slot paths: branches connecting each slot to the top AMR lane
     const deliverySlotPadX = (deliveryWPx - deliverySlots * slotW) / 2;
     const deliverySlotStartX = deliveryDx + deliverySlotPadX + slotW / 2;
-    const deliverySlotEndX = deliverySlotStartX + (deliverySlots - 1) * slotW;
 
-    // one single branch path per delivery slot
+    // Connect each slot to the outer top lane
     const deliveryJoinY = pathCenterTop - laneOffsetPx;
+    ctx.strokeStyle = "hsla(160, 50%, 50%, 0.5)";
+    ctx.lineWidth = LANE_LINE_W_PX;
     for (let c = 0; c < deliverySlots; c++) {
       const slotCenterX = deliverySlotStartX + c * slotW;
       ctx.beginPath();

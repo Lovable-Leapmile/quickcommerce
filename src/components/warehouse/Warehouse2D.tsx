@@ -184,6 +184,8 @@ export function Warehouse2D({
   useEffect(() => {
     filledPackingSlotsRef.current = filledPackingSlots;
   }, [filledPackingSlots]);
+  const amrSpeedRef = useRef(amrSpeedProp);
+  useEffect(() => { amrSpeedRef.current = amrSpeedProp; }, [amrSpeedProp]);
 
   const { rows, racks, deep } = params;
   const numAisles = Math.max(1, Math.floor(rows / 2));

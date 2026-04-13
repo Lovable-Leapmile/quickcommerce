@@ -259,6 +259,7 @@ export function Warehouse2D({
         traySourceKey: `${rowToAisleSide(src.row).aisleIdx}-${src.rack - 1}-${getDeepOffset(src)}`,
         activeShuttleIdx: activeIdx,
         orderQueue: [],
+        itemIndex: order.itemIndex ?? 0,
       };
     },
     [shuttleIdlePos],

@@ -239,9 +239,12 @@ export function CombinedMovementCommand({
                   {isExpanded && (
                     <div className="px-2 pb-1.5 space-y-1 border-t border-border/30">
                       {order.items.map((item, idx) => (
-                        <div key={idx} className="pl-6 py-1 font-mono text-[10px] text-muted-foreground space-y-0.5">
-                          <div className="flex gap-2">
-                            <span className="text-foreground/70">Item {idx + 1}</span>
+                        <div key={idx} className="pl-4 py-1 font-mono text-[10px] text-muted-foreground space-y-0.5">
+                          <div className="flex gap-2 items-center">
+                            <span className="inline-flex items-center justify-center h-4 w-5 rounded bg-yellow-500/90 text-black font-bold text-[9px]">
+                              #{idx + 1}
+                            </span>
+                            <span className="text-foreground/80 font-semibold">Item {idx + 1}</span>
                           </div>
                           <div>
                             <span className="text-accent/70">Shuttle:</span>{" "}

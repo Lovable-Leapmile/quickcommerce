@@ -10,6 +10,7 @@ interface Warehouse2DProps {
   params: WarehouseParams;
   movementOrders: MovementOrder[];
   movementOrdersKey?: number;
+  initialTrayLabels?: Array<{ row: number; rack: number; deep: number; itemIndex: number }>;
   onAnimationComplete: () => void;
   componentStyles: ComponentStyles;
   onComponentClick: (type: ComponentType) => void;

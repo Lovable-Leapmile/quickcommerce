@@ -1941,9 +1941,9 @@ export function Warehouse2D({
         const srcMX = toMX(srcSx);
         const srcMY = toMY(srcSy);
 
-        // Destination: first available delivery slot
-        let targetDelivSlot = 0;
-        for (let ds = 0; ds < deliverySlots; ds++) {
+        // Destination: farthest available delivery slot (so blue is visible, not hidden by labels)
+        let targetDelivSlot = deliverySlots - 1;
+        for (let ds = deliverySlots - 1; ds >= 0; ds--) {
           if (!filledDeliverySlotsRef.current.has(ds)) {
             targetDelivSlot = ds;
             break;

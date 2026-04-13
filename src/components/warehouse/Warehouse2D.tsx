@@ -1236,13 +1236,22 @@ export function Warehouse2D({
             drawReadableText("📦", cx + rotatedW / 2, cy + ch / 2);
           }
         } else {
-          // Draw slot number label (1-8, skipping center)
+          // Draw slot number or item number label
           const slotNum = c < centerSlotIdx ? c + 1 : c;
+          const packedItemNum = packedItemNumbersRef.current.get(`${s}-${c}`);
           ctx.font = "bold 6px monospace";
-          ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
+          if (isDropped && packedItemNum) {
+            // Show item number with distinct color when filled
+            ctx.fillStyle = "hsl(0, 0%, 100%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`#${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
+          } else {
+            ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
+          }
         }
       }
 
@@ -1522,6 +1531,14 @@ export function Warehouse2D({
             ctx.beginPath();
             ctx.roundRect(shuttleX - slotW * 0.35, forkEndY - slotD * 0.2, slotW * 0.7, slotD * 0.4, 2);
             ctx.fill();
+            // Draw item number on shuttle tray
+            if (aisleAnim!.itemIndex > 0) {
+              ctx.font = "bold 5px monospace";
+              ctx.fillStyle = "hsl(0, 0%, 100%)";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              drawReadableText(`#${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
+            }
           }
         }
 
@@ -1971,7 +1988,8 @@ export function Warehouse2D({
         const destMX = destSlotPos.mx;
         const destMY = destSlotPos.my;
 
-        const leftLaneMX = pathLeftM - laneOffsetM;
+        const agvLaneLocal = getAgvLane(agvId);
+        const leftLaneMX = laneX("left", agvLaneLocal);
         const topPathMY = deliveryBranchPathMY;
 
         // ---- Source waypoints: from delivery slot → top AMR path → left lane → station branch → station ----
@@ -2112,6 +2130,15 @@ export function Warehouse2D({
         ctx.strokeStyle = "hsl(210, 60%, 60%)";
         ctx.lineWidth = 0.5;
         ctx.stroke();
+        // Draw item number on AGV tray
+        const agvItemIdx = agvAnimState?.order?.itemIndex;
+        if (agvItemIdx && agvItemIdx > 0) {
+          ctx.font = "bold 5px monospace";
+          ctx.fillStyle = "hsl(0, 0%, 100%)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`#${agvItemIdx}`, 0, -amrH2 / 2 - slotD * 0.15 - 2 + slotD * 0.125);
+        }
       }
 
       ctx.restore();

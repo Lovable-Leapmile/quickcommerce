@@ -386,6 +386,7 @@ export default function Index() {
             amrOrdersKey={amrOrdersKey}
             onAMRComplete={() => setIsAMRAnimating(false)}
             agvs={agvs}
+            amrSpeed={amrSpeed}
           />
           <OrderOverlay
             orders={combinedOrders}
@@ -393,6 +394,8 @@ export default function Index() {
             onRefetchOrders={refetchCombinedOrders}
             onExecute={handleCombinedExecute}
             onReset={handleCombinedReset}
+            amrSpeed={amrSpeed}
+            onAmrSpeedChange={setAmrSpeed}
           />
         </div>
       </div>

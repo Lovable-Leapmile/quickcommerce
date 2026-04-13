@@ -144,11 +144,12 @@ export function Warehouse2D({
     returnWpIdx: number;
     order: AMROrder | null;
     orderQueue: AMROrder[];
-    angle: number; // heading angle in radians
-    stopped: boolean; // collision stop
-    stoppedTimer: number; // seconds stopped
+    angle: number;
+    stopped: boolean;
+    stoppedTimer: number;
     targetPackingStationIdx: number;
     targetPackingSlotIdx: number;
+    currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch";
   }
   const createDefaultAMRState = (): AMRAnimState => ({
     phase: "idle",

@@ -175,6 +175,7 @@ export function Warehouse2D({
     stoppedTimer: 0,
     targetPackingStationIdx: -1,
     targetPackingSlotIdx: -1,
+    currentSegmentKind: "right-vertical",
   });
   const amrAnimMapRef = useRef<Map<number, AMRAnimState>>(new Map());
   const amrRafRef = useRef<number>(0);

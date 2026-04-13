@@ -681,24 +681,26 @@ export function Warehouse2D({
               });
               reservedPackingSlotsRef.current.delete(key);
             }
-            st.phase = st.returnWaypoints.length > 0 ? "return_to_idle" : "done";
-            st.returnWpIdx = 1;
-            if (st.phase === "done") {
-              if (st.orderQueue.length > 0) {
-                const nextOrder = st.orderQueue.shift()!;
-                st.order = nextOrder;
-                st.phase = "to_source";
-                st.sourceWaypoints = [];
-                st.stationWaypoints = [];
-                st.returnWaypoints = [];
-                st.sourceWpIdx = 0;
-                st.stationWpIdx = 0;
-                st.returnWpIdx = 0;
-                st.pickupTimer = 0;
-                st.dropoffTimer = 0;
-                st.targetPackingStationIdx = -1;
-                st.targetPackingSlotIdx = -1;
-              } else {
+            // If there are more orders in queue, go directly to next source (no return to parking)
+            if (st.orderQueue.length > 0) {
+              const nextOrder = st.orderQueue.shift()!;
+              st.order = nextOrder;
+              st.phase = "to_source";
+              st.sourceWaypoints = [];
+              st.stationWaypoints = [];
+              st.returnWaypoints = [];
+              st.sourceWpIdx = 0;
+              st.stationWpIdx = 0;
+              st.returnWpIdx = 0;
+              st.pickupTimer = 0;
+              st.dropoffTimer = 0;
+              st.targetPackingStationIdx = -1;
+              st.targetPackingSlotIdx = -1;
+            } else {
+              // No more orders — return to parking or mark done
+              st.phase = st.returnWaypoints.length > 0 ? "return_to_idle" : "done";
+              st.returnWpIdx = 1;
+              if (st.phase === "done") {
                 onAMRComplete();
               }
             }

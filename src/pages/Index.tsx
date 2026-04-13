@@ -6,6 +6,7 @@ import { useOrders } from "@/hooks/useOrders";
 import { Warehouse2D } from "@/components/warehouse/Warehouse2D";
 import { type MovementOrder } from "@/components/warehouse/MovementCommand";
 import { CombinedMovementCommand, type CombinedExecutionPayload } from "@/components/warehouse/CombinedMovementCommand";
+import { OrderOverlay } from "@/components/warehouse/OrderOverlay";
 import type { AMROrder } from "@/components/warehouse/AMRCommand";
 import { ComponentEditor } from "@/components/warehouse/ComponentEditor";
 import {
@@ -384,6 +385,13 @@ export default function Index() {
             amrOrdersKey={amrOrdersKey}
             onAMRComplete={() => setIsAMRAnimating(false)}
             agvs={agvs}
+          />
+          <OrderOverlay
+            orders={combinedOrders}
+            ordersLoading={combinedOrdersLoading}
+            onRefetchOrders={refetchCombinedOrders}
+            onExecute={handleCombinedExecute}
+            onReset={handleCombinedReset}
           />
         </div>
       </div>

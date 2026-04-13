@@ -87,26 +87,38 @@ export function CombinedMovementCommand({
       const agvCount = getAgvCount(order);
       totalAgvCount += agvCount;
 
-      for (const item of order.items) {
-        // Shuttle: from_location → to_location
-        shuttleOrders.push({
-          source: { row: item.srcRow, rack: item.srcRack, deep: item.srcDeep, slot: item.srcSlot },
-          destination: { row: item.dstRow, rack: item.dstRack, deep: item.dstDeep, slot: item.dstSlot },
-        });
-
-        // AGV: to_location → packing_location
-        amrOrders.push({
-          agvId: 1, // Will be assigned dynamically
-          sourceStation: item.packingStation,
-          destIsDelivery: false,
-          flowType: "rack-to-station",
-          rackRow: item.dstRow,
-          rackRack: item.dstRack,
-          rackDeep: item.dstDeep,
-          rackSlot: item.dstSlot,
-          destStation: item.packingStation,
-        });
+      // Distribute items across AGVs round-robin
+      // Group items by AGV index, then assign agvId = globalAgvOffset + localIdx + 1
+      const itemsByAgv: Map<number, typeof order.items> = new Map();
+      for (let i = 0; i < order.items.length; i++) {
+        const agvIdx = i % agvCount;
+        if (!itemsByAgv.has(agvIdx)) itemsByAgv.set(agvIdx, []);
+        itemsByAgv.get(agvIdx)!.push(order.items[i]);
       }
+
+      itemsByAgv.forEach((items, agvIdx) => {
+        const assignedAgvId = agvIdx + 1; // AGV IDs start from 1
+        for (const item of items) {
+          // Shuttle: from_location → to_location
+          shuttleOrders.push({
+            source: { row: item.srcRow, rack: item.srcRack, deep: item.srcDeep, slot: item.srcSlot },
+            destination: { row: item.dstRow, rack: item.dstRack, deep: item.dstDeep, slot: item.dstSlot },
+          });
+
+          // AGV: to_location → packing_location
+          amrOrders.push({
+            agvId: assignedAgvId,
+            sourceStation: item.packingStation,
+            destIsDelivery: false,
+            flowType: "rack-to-station",
+            rackRow: item.dstRow,
+            rackRack: item.dstRack,
+            rackDeep: item.dstDeep,
+            rackSlot: item.dstSlot,
+            destStation: item.packingStation,
+          });
+        }
+      });
     }
 
     return { shuttleOrders, amrOrders, agvCount: totalAgvCount };

@@ -1533,8 +1533,8 @@ export function Warehouse2D({
             ctx.fill();
             // Draw item number on shuttle tray
             if (aisleAnim!.itemIndex > 0) {
-              ctx.font = "bold 5px monospace";
-              ctx.fillStyle = "hsl(0, 0%, 100%)";
+              ctx.font = "bold 6px monospace";
+              ctx.fillStyle = "hsl(50, 100%, 70%)";
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
               drawReadableText(`#${aisleAnim!.itemIndex}`, shuttleX, forkEndY);

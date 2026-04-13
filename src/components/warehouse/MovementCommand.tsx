@@ -17,6 +17,7 @@ export interface SlotAddress {
 export interface MovementOrder {
   source: SlotAddress;
   destination: SlotAddress;
+  itemIndex?: number;
 }
 
 /** Derive aisle index (0-based) and side ("top"|"bottom") from row (1-based) */

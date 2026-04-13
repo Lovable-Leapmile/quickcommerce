@@ -23,6 +23,7 @@ export interface AMROrder {
   rackDeep?: number;
   rackSlot?: number;
   destStation?: number;
+  itemIndex?: number;
 }
 
 interface AMRCommandProps {

@@ -87,6 +87,7 @@ export default function Index() {
   const [amrOrdersKey, setAmrOrdersKey] = useState(0);
   const [isAMRAnimating, setIsAMRAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [amrSpeed, setAmrSpeed] = useState(0.5);
 
   // New project dialog
   const [newProjectOpen, setNewProjectOpen] = useState(false);

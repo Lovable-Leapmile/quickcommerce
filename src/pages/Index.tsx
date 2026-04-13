@@ -4,7 +4,7 @@ import { useStoreParams } from "@/hooks/useStoreParams";
 import { useAGVs } from "@/hooks/useAGVs";
 import { useOrders } from "@/hooks/useOrders";
 import { Warehouse2D } from "@/components/warehouse/Warehouse2D";
-import { MovementCommand, type MovementOrder } from "@/components/warehouse/MovementCommand";
+import { type MovementOrder } from "@/components/warehouse/MovementCommand";
 import { CombinedMovementCommand, type CombinedExecutionPayload } from "@/components/warehouse/CombinedMovementCommand";
 import type { AMROrder } from "@/components/warehouse/AMRCommand";
 import { ComponentEditor } from "@/components/warehouse/ComponentEditor";
@@ -81,7 +81,7 @@ export default function Index() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingComponent, setEditingComponent] = useState<ComponentType | null>(null);
   const [moveRobotMode, setMoveRobotMode] = useState(false);
-  const [amrOrder, setAmrOrder] = useState<AMROrder | null>(null);
+  const [_amrOrder, _setAmrOrder] = useState<AMROrder | null>(null);
   const [amrOrders, setAmrOrders] = useState<AMROrder[]>([]);
   const [amrOrdersKey, setAmrOrdersKey] = useState(0);
   const [isAMRAnimating, setIsAMRAnimating] = useState(false);

@@ -1481,6 +1481,16 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
+          // Draw item number label if this tray is a source for an order item
+          const itemLabel = trayItemLabelsRef.current.get(trayKey);
+          if (itemLabel && !isRemoved) {
+            ctx.font = "bold 6px monospace";
+            ctx.fillStyle = "hsl(50, 100%, 70%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`#${itemLabel}`, x + slotW / 2, y + 1 + (slotD - 2) / 2);
+          }
+
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
         }
       }

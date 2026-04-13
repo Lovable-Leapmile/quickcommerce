@@ -189,6 +189,22 @@ export function Warehouse2D({
   const amrSpeedRef = useRef(amrSpeedProp);
   useEffect(() => { amrSpeedRef.current = amrSpeedProp; }, [amrSpeedProp]);
 
+  // Consolidation timer: after all items dropped at a station, wait 6s then move to center blue slot
+  // Map<stationIdx, { startTime: number, itemCount: number }>
+  const consolidationTimersRef = useRef<Map<number, { startTime: number; itemCount: number }>>(new Map());
+  const [deliveryReadyStations, setDeliveryReadyStations] = useState<Set<number>>(new Set());
+  const deliveryReadyStationsRef = useRef<Set<number>>(new Set());
+  useEffect(() => { deliveryReadyStationsRef.current = deliveryReadyStations; }, [deliveryReadyStations]);
+
+  // Track pending delivery dispatch for auto-delivery AGV
+  const pendingDeliveryRef = useRef<number[]>([]);
+
+  // Designate last AGV as delivery AGV (parked at delivery area)
+  const getDeliveryAgvId = useCallback(() => {
+    const agvList = agvs.length > 0 ? agvs : [{ agv_id: 1, agv_name: "agv1" }];
+    return agvList[agvList.length - 1].agv_id;
+  }, [agvs]);
+
   const { rows, racks, deep } = params;
   const numAisles = Math.max(1, Math.floor(rows / 2));
   const rackGap = 0.05;
@@ -662,13 +678,32 @@ export function Warehouse2D({
               st.targetPackingStationIdx >= 0 &&
               st.targetPackingSlotIdx >= 0
             ) {
-              const key = `${st.targetPackingStationIdx}-${st.targetPackingSlotIdx}`;
+              const stIdx = st.targetPackingStationIdx;
+              const key = `${stIdx}-${st.targetPackingSlotIdx}`;
               setFilledPackingSlots((prev) => {
                 const next = new Set(prev);
                 next.add(key);
                 return next;
               });
               reservedPackingSlotsRef.current.delete(key);
+
+              // Start or update consolidation timer for this station
+              const existing = consolidationTimersRef.current.get(stIdx);
+              if (existing) {
+                existing.startTime = performance.now();
+                existing.itemCount += 1;
+              } else {
+                consolidationTimersRef.current.set(stIdx, { startTime: performance.now(), itemCount: 1 });
+              }
+            }
+            // When delivery AGV drops at delivery area, clear the delivery-ready state
+            if (st.order?.flowType === "station-to-delivery" && st.order?.destIsDelivery) {
+              const srcStation = (st.order.sourceStation || 1) - 1;
+              setDeliveryReadyStations((prev) => {
+                const next = new Set(prev);
+                next.delete(srcStation);
+                return next;
+              });
             }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {
@@ -720,6 +755,60 @@ export function Warehouse2D({
         }
       });
 
+      // Check consolidation timers — 6 seconds after last drop, consolidate to center blue slot
+      const now2 = performance.now();
+      const CONSOLIDATION_DELAY = 6000; // 6 seconds
+      consolidationTimersRef.current.forEach((timer, stationIdx) => {
+        if (now2 - timer.startTime >= CONSOLIDATION_DELAY && !deliveryReadyStationsRef.current.has(stationIdx)) {
+          // Consolidate: clear all non-center filled slots for this station, mark center as delivery-ready
+          const centerIdx = Math.floor(PACKING_SLOTS_PER_STATION / 2);
+          setFilledPackingSlots((prev) => {
+            const next = new Set(prev);
+            for (let c = 0; c < PACKING_SLOTS_PER_STATION; c++) {
+              if (c !== centerIdx) next.delete(`${stationIdx}-${c}`);
+            }
+            return next;
+          });
+          setDeliveryReadyStations((prev) => {
+            const next = new Set(prev);
+            next.add(stationIdx);
+            return next;
+          });
+          // Queue auto-delivery for this station
+          pendingDeliveryRef.current.push(stationIdx);
+          consolidationTimersRef.current.delete(stationIdx);
+        }
+      });
+
+      // Auto-dispatch delivery AGV for pending deliveries
+      if (pendingDeliveryRef.current.length > 0) {
+        const deliveryAgvId = getDeliveryAgvId();
+        const deliverySt = amrAnimMapRef.current.get(deliveryAgvId);
+        const isIdle = !deliverySt || deliverySt.phase === "idle" || deliverySt.phase === "done";
+        if (isIdle && pendingDeliveryRef.current.length > 0) {
+          const stationIdx = pendingDeliveryRef.current.shift()!;
+          // Create internal delivery order: pick from packing station center → deliver to delivery area
+          const deliveryOrder: AMROrder = {
+            agvId: deliveryAgvId,
+            sourceStation: stationIdx + 1,
+            flowType: "station-to-delivery",
+            destIsDelivery: true,
+            manualMode: false,
+          };
+          const st = createDefaultAMRState();
+          st.phase = "to_source";
+          st.order = deliveryOrder;
+          st.orderQueue = [];
+          st.initialized = deliverySt?.initialized ?? false;
+          st.mx = deliverySt?.mx ?? 0;
+          st.my = deliverySt?.my ?? 0;
+          // Mark as delivery segment
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "right-vertical";
+          amrAnimMapRef.current.set(deliveryAgvId, st);
+          anyActive = true;
+        }
+      }
+
       drawCanvasRef.current();
 
       if (anyActive) {
@@ -729,7 +818,7 @@ export function Warehouse2D({
       }
     };
     amrRafRef.current = requestAnimationFrame(loop);
-  }, [onAMRComplete]);
+  }, [onAMRComplete, getDeliveryAgvId]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -1062,11 +1151,16 @@ export function Warehouse2D({
 
         const isCenter = c === centerSlotIdx;
         const isDropped = filledPackingSlotsRef.current.has(`${s}-${c}`);
-        ctx.fillStyle = isCenter ? "hsl(210, 72%, 57%)" : isDropped ? "hsl(220, 12%, 72%)" : "hsl(223, 24%, 20%)";
+        const isDeliveryReady = isCenter && deliveryReadyStationsRef.current.has(s);
+        ctx.fillStyle = isCenter
+          ? (isDeliveryReady ? "hsl(210, 80%, 65%)" : "hsl(210, 72%, 57%)")
+          : isDropped ? "hsl(220, 12%, 72%)" : "hsl(223, 24%, 20%)";
         ctx.beginPath();
         ctx.roundRect(cx, cy, rotatedW, ch, 3);
         ctx.fill();
-        ctx.strokeStyle = isCenter ? "hsl(207, 86%, 74%)" : isDropped ? "hsl(220, 15%, 82%)" : "hsl(224, 22%, 34%)";
+        ctx.strokeStyle = isCenter
+          ? (isDeliveryReady ? "hsl(210, 90%, 80%)" : "hsl(207, 86%, 74%)")
+          : isDropped ? "hsl(220, 15%, 82%)" : "hsl(224, 22%, 34%)";
         ctx.lineWidth = 1.1;
         ctx.stroke();
 
@@ -1078,6 +1172,22 @@ export function Warehouse2D({
           ctx.beginPath();
           ctx.roundRect(cx + 1.5, cy + 1.5, hiW, hiH, 2);
           ctx.stroke();
+          // Delivery tray icon if ready
+          if (isDeliveryReady) {
+            ctx.font = "bold 6px monospace";
+            ctx.fillStyle = "hsl(0, 0%, 100%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText("📦", cx + rotatedW / 2, cy + ch / 2);
+          }
+        } else {
+          // Draw slot number label (1-8, skipping center)
+          const slotNum = c < centerSlotIdx ? c + 1 : c;
+          ctx.font = "bold 6px monospace";
+          ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
         }
       }
 
@@ -1455,8 +1565,25 @@ export function Warehouse2D({
       segment: IdleSegment;
     };
 
-    // Each AGV gets parked in the right-side parking area
+    // Compute delivery slot positions in meters for idle placement
+    // Compute delivery slot positions in meters for idle placement
+    const deliverySlotPositions: { mx: number; my: number }[] = [];
+    for (let c = 0; c < deliverySlots; c++) {
+      const slotCenterXPx = deliveryDx + (deliveryWPx - deliverySlots * slotW) / 2 + c * slotW + slotW / 2;
+      const slotCenterYPx = deliveryDy + deliveryHPx; // bottom edge of delivery station
+      deliverySlotPositions.push({ mx: toMX(slotCenterXPx), my: toMY(slotCenterYPx) });
+    }
+
+    // Each AGV gets parked in the right-side parking area, except the last one which parks at delivery area
+    const deliveryAgvId = getDeliveryAgvId();
     const computeIdlePlacement = (agvId: number): IdlePlacement => {
+      // Last AGV parks at the delivery area (first empty slot)
+      if (agvId === deliveryAgvId && deliverySlotPositions.length > 0) {
+        // Park at center delivery slot
+        const centerDeliverySlot = Math.floor(deliverySlots / 2);
+        const pos = deliverySlotPositions[centerDeliverySlot];
+        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };
+      }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
       const idx = agvIdx >= 0 ? agvIdx : 0;
       const parkIdx = idx % parkingPositions.length;
@@ -1993,6 +2120,8 @@ export function Warehouse2D({
     warehouseOffset,
     coordTooltip,
     agvs,
+    deliveryReadyStations,
+    getDeliveryAgvId,
   ]);
 
   // Keep ref in sync so animation loops always call latest drawCanvas

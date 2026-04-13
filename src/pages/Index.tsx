@@ -403,6 +403,7 @@ export default function Index() {
             amrOrders={amrOrders}
             amrOrdersKey={amrOrdersKey}
             onAMRComplete={() => setIsAMRAnimating(false)}
+            onDeliveryComplete={handleDeliveryComplete}
             agvs={agvs}
             amrSpeed={amrSpeed}
           />
@@ -414,6 +415,7 @@ export default function Index() {
             onReset={handleCombinedReset}
             amrSpeed={amrSpeed}
             onAmrSpeedChange={setAmrSpeed}
+            completedTimes={orderCompletedTimes}
           />
         </div>
       </div>

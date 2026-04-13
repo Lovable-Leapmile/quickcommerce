@@ -1556,8 +1556,25 @@ export function Warehouse2D({
       segment: IdleSegment;
     };
 
-    // Each AGV gets parked in the right-side parking area
+    // Compute delivery slot positions in meters for idle placement
+    const deliverySlotPadXm = (deliveryW_m - deliverySlots * SLOT_W_M) / 2;
+    const deliverySlotPositions: { mx: number; my: number }[] = [];
+    for (let c = 0; c < deliverySlots; c++) {
+      const slotCenterXPx = deliveryDx + (deliveryWPx - deliverySlots * slotW) / 2 + c * slotW + slotW / 2;
+      const slotCenterYPx = deliveryDy + deliveryHPx; // bottom edge of delivery station
+      deliverySlotPositions.push({ mx: toMX(slotCenterXPx), my: toMY(slotCenterYPx) });
+    }
+
+    // Each AGV gets parked in the right-side parking area, except the last one which parks at delivery area
+    const deliveryAgvId = getDeliveryAgvId();
     const computeIdlePlacement = (agvId: number): IdlePlacement => {
+      // Last AGV parks at the delivery area (first empty slot)
+      if (agvId === deliveryAgvId && deliverySlotPositions.length > 0) {
+        // Park at center delivery slot
+        const centerDeliverySlot = Math.floor(deliverySlots / 2);
+        const pos = deliverySlotPositions[centerDeliverySlot];
+        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };
+      }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
       const idx = agvIdx >= 0 ? agvIdx : 0;
       const parkIdx = idx % parkingPositions.length;

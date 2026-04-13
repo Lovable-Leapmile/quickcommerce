@@ -121,6 +121,8 @@ export function Warehouse2D({
   const shuttleAnimMapRef = useRef<Map<number, AnimState>>(new Map());
   const [removedTrays, setRemovedTrays] = useState<Set<string>>(new Set());
   const [placedTrays, setPlacedTrays] = useState<{ aisle: number; rack: number; deepOffset: number }[]>([]);
+  // Map source tray key → item number for initial labeling on racks
+  const trayItemLabelsRef = useRef<Map<string, number>>(new Map());
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const hitRegionsRef = useRef<HitRegion[]>([]);
@@ -273,7 +275,21 @@ export function Warehouse2D({
       shuttleAnimMapRef.current.clear();
       setRemovedTrays(new Set());
       setPlacedTrays([]);
+      trayItemLabelsRef.current.clear();
       return;
+    }
+
+    // Build tray item labels map from source locations
+    trayItemLabelsRef.current.clear();
+    for (const order of movementOrders) {
+      if (order.itemIndex) {
+        const src = order.source;
+        const { aisleIdx } = rowToAisleSide(src.row);
+        const srcRack = src.rack - 1;
+        const srcDeepOffset = getDeepOffset(src);
+        const key = `${aisleIdx}-${srcRack}-${srcDeepOffset}`;
+        trayItemLabelsRef.current.set(key, order.itemIndex);
+      }
     }
 
     // Group orders by source aisle
@@ -1465,6 +1481,16 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
+          // Draw item number label if this tray is a source for an order item
+          const itemLabel = trayItemLabelsRef.current.get(trayKey);
+          if (itemLabel && !isRemoved) {
+            ctx.font = "bold 6px monospace";
+            ctx.fillStyle = "hsl(50, 100%, 70%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`#${itemLabel}`, x + slotW / 2, y + 1 + (slotD - 2) / 2);
+          }
+
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
         }
       }
@@ -1579,6 +1605,16 @@ export function Warehouse2D({
           ctx.strokeStyle = `hsl(210, 55%, ${brightness + 18}%)`;
           ctx.lineWidth = 1;
           ctx.stroke();
+
+          // Draw item number label if this tray is a source for an order item
+          const itemLabel = trayItemLabelsRef.current.get(trayKey);
+          if (itemLabel && !isRemoved) {
+            ctx.font = "bold 6px monospace";
+            ctx.fillStyle = "hsl(50, 100%, 70%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`#${itemLabel}`, x + slotW / 2, y + 1 + (slotD - 2) / 2);
+          }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
         }

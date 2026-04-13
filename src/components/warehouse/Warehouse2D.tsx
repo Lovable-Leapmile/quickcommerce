@@ -12,7 +12,7 @@ interface Warehouse2DProps {
   movementOrdersKey?: number;
   onAnimationComplete: () => void;
   componentStyles: ComponentStyles;
-  onComponentClick: (type: ComponentType) => void:
+  onComponentClick: (type: ComponentType) => void;
   moveRobotMode?: boolean;
   amrOrders: AMROrder[];
   amrOrdersKey?: number;

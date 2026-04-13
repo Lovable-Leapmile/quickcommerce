@@ -1598,7 +1598,14 @@ export function Warehouse2D({
     const computeIdlePlacement = (agvId: number): IdlePlacement => {
       // Last AGV parks at the delivery area (first empty slot)
       if (agvId === deliveryAgvId && deliverySlotPositions.length > 0) {
-        // Park at center delivery slot
+        // Find first empty delivery slot
+        for (let i = 0; i < deliverySlotPositions.length; i++) {
+          if (!filledDeliverySlotsRef.current.has(i)) {
+            const pos = deliverySlotPositions[i];
+            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };
+          }
+        }
+        // Fallback: center slot
         const centerDeliverySlot = Math.floor(deliverySlots / 2);
         const pos = deliverySlotPositions[centerDeliverySlot];
         return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };

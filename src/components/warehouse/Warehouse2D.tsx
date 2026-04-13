@@ -911,6 +911,7 @@ export function Warehouse2D({
     return () => clearInterval(interval);
   }, [getDeliveryAgvId, startAMRLoop]);
 
+  const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");

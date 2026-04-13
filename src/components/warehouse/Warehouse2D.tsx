@@ -189,12 +189,18 @@ export function Warehouse2D({
   const amrSpeedRef = useRef(amrSpeedProp);
   useEffect(() => { amrSpeedRef.current = amrSpeedProp; }, [amrSpeedProp]);
 
-  // Consolidation timer: after all items dropped at a station, wait 6s then move to center blue slot
-  // Map<stationIdx, { startTime: number, itemCount: number }>
-  const consolidationTimersRef = useRef<Map<number, { startTime: number; itemCount: number }>>(new Map());
+  // Track expected vs dropped items per station for consolidation
+  // Map<stationIdx, { expected: number, dropped: number }>
+  const stationItemCountRef = useRef<Map<number, { expected: number; dropped: number }>>(new Map());
+  // Consolidation timer: starts only after ALL expected items are dropped, then waits 6s
+  // Map<stationIdx, { startTime: number }>
+  const consolidationTimersRef = useRef<Map<number, { startTime: number }>>(new Map());
   const [deliveryReadyStations, setDeliveryReadyStations] = useState<Set<number>>(new Set());
   const deliveryReadyStationsRef = useRef<Set<number>>(new Set());
   useEffect(() => { deliveryReadyStationsRef.current = deliveryReadyStations; }, [deliveryReadyStations]);
+
+  // Track filled delivery slots
+  const filledDeliverySlotsRef = useRef<Set<number>>(new Set());
 
   // Track pending delivery dispatch for auto-delivery AGV
   const pendingDeliveryRef = useRef<number[]>([]);

@@ -849,7 +849,68 @@ export function Warehouse2D({
     amrRafRef.current = requestAnimationFrame(loop);
   }, [onAMRComplete, getDeliveryAgvId]);
 
-  const drawCanvas = useCallback(() => {
+  // Separate interval to check consolidation timers even when animation loop is stopped
+  useEffect(() => {
+    const CONSOLIDATION_DELAY = 6000;
+    const interval = setInterval(() => {
+      const now = performance.now();
+      let changed = false;
+      consolidationTimersRef.current.forEach((timer, stationIdx) => {
+        if (now - timer.startTime >= CONSOLIDATION_DELAY && !deliveryReadyStationsRef.current.has(stationIdx)) {
+          const centerIdx = Math.floor(PACKING_SLOTS_PER_STATION / 2);
+          setFilledPackingSlots((prev) => {
+            const next = new Set(prev);
+            for (let c = 0; c < PACKING_SLOTS_PER_STATION; c++) {
+              if (c !== centerIdx) next.delete(`${stationIdx}-${c}`);
+            }
+            return next;
+          });
+          setDeliveryReadyStations((prev) => {
+            const next = new Set(prev);
+            next.add(stationIdx);
+            return next;
+          });
+          pendingDeliveryRef.current.push(stationIdx);
+          consolidationTimersRef.current.delete(stationIdx);
+          changed = true;
+        }
+      });
+
+      // Auto-dispatch delivery AGV for pending deliveries
+      if (pendingDeliveryRef.current.length > 0) {
+        const delivAgvId = getDeliveryAgvId();
+        const deliverySt = amrAnimMapRef.current.get(delivAgvId);
+        const isIdle = !deliverySt || deliverySt.phase === "idle" || deliverySt.phase === "done";
+        if (isIdle) {
+          const stationIdx = pendingDeliveryRef.current.shift()!;
+          const deliveryOrder: AMROrder = {
+            agvId: delivAgvId,
+            sourceStation: stationIdx + 1,
+            flowType: "station-to-delivery",
+            destIsDelivery: true,
+            manualMode: false,
+          };
+          const st = createDefaultAMRState();
+          st.phase = "to_source";
+          st.order = deliveryOrder;
+          st.orderQueue = [];
+          st.initialized = deliverySt?.initialized ?? false;
+          st.mx = deliverySt?.mx ?? 0;
+          st.my = deliverySt?.my ?? 0;
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "delivery-branch";
+          amrAnimMapRef.current.set(delivAgvId, st);
+          startAMRLoop();
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        drawCanvasRef.current();
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [getDeliveryAgvId, startAMRLoop]);
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");

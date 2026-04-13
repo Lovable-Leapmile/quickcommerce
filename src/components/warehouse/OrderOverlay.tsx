@@ -20,6 +20,7 @@ interface OrderOverlayProps {
   onReset: () => void;
   amrSpeed: number;
   onAmrSpeedChange: (speed: number) => void;
+  completedTimes?: Record<number, number>;
 }
 
 export function OrderOverlay({

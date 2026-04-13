@@ -587,34 +587,17 @@ export function Warehouse2D({
             return { arrived: false, newIdx: wpIdx };
           }
 
-          // LANE SWITCH: higher-ID AGV creates a detour on adjacent lane
-          if (shouldSwitch && !shouldYield && st.stoppedTimer > LANE_SWITCH_WAIT) {
-            const isHoriz = Math.abs(dx) > Math.abs(dy);
-            const laneGap = LANE_GAP_M;
-
-            for (const sign of [1, -1]) {
-              const adjMX = st.mx + (isHoriz ? 0 : sign * laneGap);
-              const adjMY = st.my + (isHoriz ? sign * laneGap : 0);
-
-              const passDist = STOP_DIST * 4;
-              const fwdX = isHoriz ? Math.sign(dx) * passDist : 0;
-              const fwdY = isHoriz ? 0 : Math.sign(dy) * passDist;
-
-              if (isLanePointFree(agvId, adjMX, adjMY) && isLanePointFree(agvId, adjMX + fwdX, adjMY + fwdY)) {
-                // Right-angle detour: perpendicular → forward past blocker → perpendicular back
-                const detour = [
-                  { mx: adjMX, my: adjMY },
-                  { mx: adjMX + fwdX, my: adjMY + fwdY },
-                  { mx: st.mx + fwdX, my: st.my + fwdY },
-                ];
-                waypoints.splice(wpIdx, 0, ...detour);
-
-                st.stopped = false;
-                st.stoppedTimer = 0;
-                break;
-              }
+          // LANE SWITCH: instead of arbitrary perpendicular detour, just wait longer.
+          // The dual-lane system (odd/even AGV index) already separates most traffic.
+          // Off-path detours are disabled to prevent AGVs from leaving valid lanes.
+          if (st.stoppedTimer > LANE_SWITCH_WAIT * 3) {
+            // After extended wait, try backing up to previous waypoint to let blocker pass
+            const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
+            if (prevWp) {
+              waypoints.splice(wpIdx, 0, { mx: prevWp.mx, my: prevWp.my });
+              st.stopped = false;
+              st.stoppedTimer = 0;
             }
-            return { arrived: false, newIdx: wpIdx };
           }
 
           return { arrived: false, newIdx: wpIdx };

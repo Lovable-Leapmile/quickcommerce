@@ -1988,7 +1988,6 @@ export function Warehouse2D({
         const destMX = destSlotPos.mx;
         const destMY = destSlotPos.my;
 
-        const agvLaneLocal = getAgvLane(agvId);
         const leftLaneMX = laneX("left", agvLaneLocal);
         const topPathMY = deliveryBranchPathMY;
 

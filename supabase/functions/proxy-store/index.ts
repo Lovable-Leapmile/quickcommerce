@@ -24,6 +24,8 @@ serve(async (req) => {
       apiUrl = `${BASE}/orders/agv`;
     } else if (endpoint === "orders_shuttle") {
       apiUrl = `${BASE}/orders/shuttle`;
+    } else if (endpoint === "orders") {
+      apiUrl = `${BASE}/orders`;
     } else {
       apiUrl = `${BASE}/store/${id || "1"}`;
     }

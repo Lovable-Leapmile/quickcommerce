@@ -822,7 +822,10 @@ export function Warehouse2D({
           setFilledPackingSlots((prev) => {
             const next = new Set(prev);
             for (let c = 0; c < PACKING_SLOTS_PER_STATION; c++) {
-              if (c !== centerIdx) next.delete(`${stationIdx}-${c}`);
+              if (c !== centerIdx) {
+                next.delete(`${stationIdx}-${c}`);
+                packedItemNumbersRef.current.delete(`${stationIdx}-${c}`);
+              }
             }
             return next;
           });

@@ -2,11 +2,11 @@ import { useState, useCallback } from "react";
 import { WarehouseConfig, StatCard, type WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 import { useStoreParams } from "@/hooks/useStoreParams";
 import { useAGVs } from "@/hooks/useAGVs";
-import { useAGVOrders } from "@/hooks/useAGVOrders";
+import { useOrders } from "@/hooks/useOrders";
 import { Warehouse2D } from "@/components/warehouse/Warehouse2D";
 import { MovementCommand, type MovementOrder } from "@/components/warehouse/MovementCommand";
-import { useShuttleOrders } from "@/hooks/useShuttleOrders";
-import { AMRCommand, type AMROrder } from "@/components/warehouse/AMRCommand";
+import { CombinedMovementCommand, type CombinedExecutionPayload } from "@/components/warehouse/CombinedMovementCommand";
+import type { AMROrder } from "@/components/warehouse/AMRCommand";
 import { ComponentEditor } from "@/components/warehouse/ComponentEditor";
 import {
   defaultComponentStyles,

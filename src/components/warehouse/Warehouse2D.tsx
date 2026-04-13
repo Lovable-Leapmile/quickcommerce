@@ -2120,6 +2120,8 @@ export function Warehouse2D({
     warehouseOffset,
     coordTooltip,
     agvs,
+    deliveryReadyStations,
+    getDeliveryAgvId,
   ]);
 
   // Keep ref in sync so animation loops always call latest drawCanvas

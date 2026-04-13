@@ -710,6 +710,10 @@ export function Warehouse2D({
             ) {
               const stIdx = st.targetPackingStationIdx;
               const key = `${stIdx}-${st.targetPackingSlotIdx}`;
+              // Store item number for this packing slot
+              if (st.order?.itemIndex) {
+                packedItemNumbersRef.current.set(key, st.order.itemIndex);
+              }
               setFilledPackingSlots((prev) => {
                 const next = new Set(prev);
                 next.add(key);

@@ -18,6 +18,7 @@ interface Warehouse2DProps {
   amrOrdersKey?: number;
   onAMRComplete: () => void;
   agvs: AGVInfo[];
+  amrSpeed?: number;
 }
 
 const PACKING_STATIONS_COUNT = 3;
@@ -104,6 +105,7 @@ export function Warehouse2D({
   amrOrdersKey,
   onAMRComplete,
   agvs,
+  amrSpeed: amrSpeedProp = 0.5,
 }: Warehouse2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

@@ -149,7 +149,8 @@ export function Warehouse2D({
     stoppedTimer: number;
     targetPackingStationIdx: number;
     targetPackingSlotIdx: number;
-    currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch";
+    targetDeliverySlotIdx: number;
+    currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch" | "delivery-branch";
   }
   const createDefaultAMRState = (): AMRAnimState => ({
     phase: "idle",
@@ -175,6 +176,7 @@ export function Warehouse2D({
     stoppedTimer: 0,
     targetPackingStationIdx: -1,
     targetPackingSlotIdx: -1,
+    targetDeliverySlotIdx: -1,
     currentSegmentKind: "right-vertical",
   });
   const amrAnimMapRef = useRef<Map<number, AMRAnimState>>(new Map());

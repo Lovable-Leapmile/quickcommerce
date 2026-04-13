@@ -99,8 +99,8 @@ export default function Index() {
   // Derived from active project — safe defaults when loading
   const { params: storeParams, loading: storeLoading, error: storeError } = useStoreParams();
   const { agvs } = useAGVs();
-  const { orders: agvOrders, loading: ordersLoading, refetch: refetchOrders } = useAGVOrders();
-  const { orders: shuttleOrders, loading: shuttleOrdersLoading, refetch: refetchShuttleOrders } = useShuttleOrders();
+  const { orders: combinedOrders, loading: combinedOrdersLoading, refetch: refetchCombinedOrders } = useOrders();
+  const [activeAgvCounts, setActiveAgvCounts] = useState<Record<number, number>>({});
 
   // Merge store params with packing station settings from project
   const params: WarehouseParams = {

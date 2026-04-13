@@ -1187,7 +1187,7 @@ export function Warehouse2D({
     ctx.fillStyle = "hsl(160, 50%, 65%)";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    drawReadableText("Delivery Area", deliveryCenterX, deliveryDy - 8);
+    drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
 
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;

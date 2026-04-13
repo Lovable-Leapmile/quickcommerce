@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus, Check, ChevronDown, Zap } from "lucide-react";
+import { Minus, Plus, Check, ChevronDown, Zap, Clock } from "lucide-react";
 import type { ParsedOrder } from "@/hooks/useOrders";
 import type { CombinedExecutionPayload } from "./CombinedMovementCommand";
 import type { MovementOrder } from "./MovementCommand";
@@ -162,6 +162,12 @@ export function OrderOverlay({
                 <Check className="h-2.5 w-2.5" />
                 OK
               </Button>
+              {completedTimes[order.order_id] != null && (
+                <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-400 whitespace-nowrap">
+                  <Clock className="h-2.5 w-2.5" />
+                  {completedTimes[order.order_id].toFixed(1)}s
+                </span>
+              )}
             </div>
           );
         })}

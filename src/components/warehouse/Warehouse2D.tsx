@@ -845,7 +845,7 @@ export function Warehouse2D({
           st.initialized = deliverySt?.initialized ?? false;
           st.mx = deliverySt?.mx ?? 0;
           st.my = deliverySt?.my ?? 0;
-          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "delivery-branch";
+          st.currentSegmentKind = "delivery-branch";
           amrAnimMapRef.current.set(delivAgvId, st);
           startAMRLoop();
           changed = true;
@@ -1615,6 +1615,7 @@ export function Warehouse2D({
 
     // Each AGV gets parked in the right-side parking area, except the last one which parks at delivery area
     const deliveryAgvId = getDeliveryAgvId();
+    const deliveryBranchPathMY = pathTopM - laneOffsetM;
     const computeIdlePlacement = (agvId: number): IdlePlacement => {
       // Last AGV parks at the delivery area (first empty slot)
       if (agvId === deliveryAgvId && deliverySlotPositions.length > 0) {
@@ -1622,13 +1623,13 @@ export function Warehouse2D({
         for (let i = 0; i < deliverySlotPositions.length; i++) {
           if (!filledDeliverySlotsRef.current.has(i)) {
             const pos = deliverySlotPositions[i];
-            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: laneY(horizontalPathsM[0], getAgvLane(agvId)) } };
+            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: deliveryBranchPathMY } };
           }
         }
         // Fallback: center slot
         const centerDeliverySlot = Math.floor(deliverySlots / 2);
         const pos = deliverySlotPositions[centerDeliverySlot];
-        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: laneY(horizontalPathsM[0], getAgvLane(agvId)) } };
+        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: deliveryBranchPathMY } };
       }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
       const idx = agvIdx >= 0 ? agvIdx : 0;
@@ -1954,9 +1955,8 @@ export function Warehouse2D({
         const destMX = destSlotPos.mx;
         const destMY = destSlotPos.my;
 
-        const leftLaneMX = laneX("left", agvLaneLocal);
-        const rightLaneMX = laneX("right", agvLaneLocal);
-        const topPathMY = laneY(horizontalPathsM[0], agvLaneLocal);
+        const leftLaneMX = pathLeftM - laneOffsetM;
+        const topPathMY = deliveryBranchPathMY;
 
         // ---- Source waypoints: from delivery slot → top AMR path → left lane → station branch → station ----
         const srcWps: { mx: number; my: number }[] = [];
@@ -1968,9 +1968,14 @@ export function Warehouse2D({
           // Go horizontally on top path to left vertical lane
           appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
         } else {
-          // Already on a path somewhere, route via left lane
-          const nearHP = findNearestHorizontalPath(curMY, agvLaneLocal);
-          appendWaypoint(srcWps, { mx: leftLaneMX, my: nearHP });
+          const curSegment: IdleSegment =
+            amrSt.currentSegmentKind === "left-vertical"
+              ? { kind: "left-vertical" }
+              : amrSt.currentSegmentKind === "horizontal"
+                ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
+                : { kind: "right-vertical" };
+          const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
+          strictRoute.forEach((point) => appendWaypoint(srcWps, point));
         }
         // Go vertically on left lane to station branch Y
         const stationBranchMY = srcMY;
@@ -2016,7 +2021,15 @@ export function Warehouse2D({
       let phase: AMRPhase = "idle";
       let hasTrayNow = false;
 
-      if (agvAnimState && agvAnimState.phase !== "idle" && agvAnimState.phase !== "done") {
+      const keepDeliveryAgvAtCurrentSlot =
+        agv.agv_id === deliveryAgvId &&
+        !!agvAnimState &&
+        agvAnimState.initialized &&
+        (agvAnimState.phase === "idle" || agvAnimState.phase === "done") &&
+        agvAnimState.currentSegmentKind === "delivery-branch" &&
+        (Math.abs(agvAnimState.mx) > 0.001 || Math.abs(agvAnimState.my) > 0.001);
+
+      if (agvAnimState && (agvAnimState.phase !== "idle" && agvAnimState.phase !== "done" || keepDeliveryAgvAtCurrentSlot)) {
         amrMX = agvAnimState.mx;
         amrMY = agvAnimState.my;
         phase = agvAnimState.phase;

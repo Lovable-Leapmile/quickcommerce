@@ -1566,7 +1566,7 @@ export function Warehouse2D({
     };
 
     // Compute delivery slot positions in meters for idle placement
-    const deliverySlotPadXm = (deliveryW_m - deliverySlots * SLOT_W_M) / 2;
+    // Compute delivery slot positions in meters for idle placement
     const deliverySlotPositions: { mx: number; my: number }[] = [];
     for (let c = 0; c < deliverySlots; c++) {
       const slotCenterXPx = deliveryDx + (deliveryWPx - deliverySlots * slotW) / 2 + c * slotW + slotW / 2;

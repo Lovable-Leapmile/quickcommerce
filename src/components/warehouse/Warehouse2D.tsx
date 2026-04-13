@@ -1726,15 +1726,16 @@ export function Warehouse2D({
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // Return: retrace the same path back to parking
+        // Return: via AMR paths strictly — left lane → nearest horizontal path → right lane → parking
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        appendWaypoint(returnWps, { mx: destMX, my: stationBranchMY });
+        // Branch back to left lane
         appendWaypoint(returnWps, { mx: leftLaneMX, my: stationBranchMY });
-        // Go on left lane to the rack horizontal path (same one used going)
-        appendWaypoint(returnWps, { mx: leftLaneMX, my: rackPathMY });
-        // Horizontal on that path to right vertical lane
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: rackPathMY });
+        // Find nearest horizontal AMR path to travel to right side
+        const nearestReturnPathMY = findNearestHorizontalPath(stationBranchMY, agvLaneLocal);
+        appendWaypoint(returnWps, { mx: leftLaneMX, my: nearestReturnPathMY });
+        // Horizontal on AMR path to right vertical lane
+        appendWaypoint(returnWps, { mx: rightLaneMX, my: nearestReturnPathMY });
         // Vertical on right lane to parking row
         appendWaypoint(returnWps, { mx: rightLaneMX, my: idlePlacement.my });
         // Horizontal into parking spot

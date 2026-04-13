@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Minus, Plus, Check, ChevronDown, Zap } from "lucide-react";
+import { Minus, Plus, Check, ChevronDown, Zap, Clock } from "lucide-react";
 import type { ParsedOrder } from "@/hooks/useOrders";
 import type { CombinedExecutionPayload } from "./CombinedMovementCommand";
 import type { MovementOrder } from "./MovementCommand";
@@ -20,6 +20,7 @@ interface OrderOverlayProps {
   onReset: () => void;
   amrSpeed: number;
   onAmrSpeedChange: (speed: number) => void;
+  completedTimes?: Record<number, number>;
 }
 
 export function OrderOverlay({
@@ -28,6 +29,7 @@ export function OrderOverlay({
   onExecute,
   amrSpeed,
   onAmrSpeedChange,
+  completedTimes = {},
 }: OrderOverlayProps) {
   const [agvCounts, setAgvCounts] = useState<Record<number, number>>({});
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -84,7 +86,7 @@ export function OrderOverlay({
       }
     });
 
-    onExecute({ shuttleOrders, amrOrders, agvCount });
+    onExecute({ shuttleOrders, amrOrders, agvCount, orderId: order.order_id });
   };
 
   if (ordersLoading || orders.length === 0) return null;
@@ -160,6 +162,12 @@ export function OrderOverlay({
                 <Check className="h-2.5 w-2.5" />
                 OK
               </Button>
+              {completedTimes[order.order_id] != null && (
+                <span className="flex items-center gap-0.5 text-[10px] font-semibold text-green-400 whitespace-nowrap">
+                  <Clock className="h-2.5 w-2.5" />
+                  {completedTimes[order.order_id].toFixed(1)}s
+                </span>
+              )}
             </div>
           );
         })}

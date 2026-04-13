@@ -17,6 +17,7 @@ interface Warehouse2DProps {
   amrOrders: AMROrder[];
   amrOrdersKey?: number;
   onAMRComplete: () => void;
+  onDeliveryComplete?: () => void;
   agvs: AGVInfo[];
   amrSpeed?: number;
 }
@@ -104,6 +105,7 @@ export function Warehouse2D({
   amrOrders,
   amrOrdersKey,
   onAMRComplete,
+  onDeliveryComplete,
   agvs,
   amrSpeed: amrSpeedProp = 0.5,
 }: Warehouse2DProps) {
@@ -733,6 +735,8 @@ export function Warehouse2D({
               }
               // Reset station item count
               stationItemCountRef.current.delete(srcStation);
+              // Notify parent that delivery is complete
+              onDeliveryComplete?.();
             }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {
@@ -1941,9 +1945,9 @@ export function Warehouse2D({
         const srcMX = toMX(srcSx);
         const srcMY = toMY(srcSy);
 
-        // Destination: first available delivery slot
-        let targetDelivSlot = 0;
-        for (let ds = 0; ds < deliverySlots; ds++) {
+        // Destination: farthest available delivery slot (so blue is visible, not hidden by labels)
+        let targetDelivSlot = deliverySlots - 1;
+        for (let ds = deliverySlots - 1; ds >= 0; ds--) {
           if (!filledDeliverySlotsRef.current.has(ds)) {
             targetDelivSlot = ds;
             break;

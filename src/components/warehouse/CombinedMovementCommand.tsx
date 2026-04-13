@@ -11,6 +11,7 @@ export interface CombinedExecutionPayload {
   shuttleOrders: MovementOrder[];
   amrOrders: AMROrder[];
   agvCount: number;
+  orderId?: number;
 }
 
 interface CombinedMovementCommandProps {

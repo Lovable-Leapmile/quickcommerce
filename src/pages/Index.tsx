@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { WarehouseConfig, StatCard, type WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 import { useStoreParams } from "@/hooks/useStoreParams";
 import { useAGVs } from "@/hooks/useAGVs";
@@ -88,6 +88,9 @@ export default function Index() {
   const [isAMRAnimating, setIsAMRAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [amrSpeed, setAmrSpeed] = useState(0.5);
+  const orderStartTimeRef = useRef<number | null>(null);
+  const [orderCompletedTimes, setOrderCompletedTimes] = useState<Record<number, number>>({});
+  const activeOrderIdRef = useRef<number | null>(null);
 
   // New project dialog
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -137,6 +140,11 @@ export default function Index() {
   const totalSlots = params.rows * params.racks * params.slotsPerRack * params.deep;
 
   const handleCombinedExecute = useCallback((payload: CombinedExecutionPayload) => {
+    // Track order start time
+    if (payload.orderId != null) {
+      activeOrderIdRef.current = payload.orderId;
+      orderStartTimeRef.current = Date.now();
+    }
     // Dispatch shuttle orders
     if (payload.shuttleOrders.length > 0) {
       setMovementOrders(payload.shuttleOrders);
@@ -148,6 +156,16 @@ export default function Index() {
       setAmrOrders(payload.amrOrders.map((o) => ({ ...o })));
       setAmrOrdersKey((k) => k + 1);
       setIsAMRAnimating(true);
+    }
+  }, []);
+
+  const handleDeliveryComplete = useCallback(() => {
+    if (activeOrderIdRef.current != null && orderStartTimeRef.current != null) {
+      const elapsed = (Date.now() - orderStartTimeRef.current) / 1000;
+      const orderId = activeOrderIdRef.current;
+      setOrderCompletedTimes((prev) => ({ ...prev, [orderId]: elapsed }));
+      activeOrderIdRef.current = null;
+      orderStartTimeRef.current = null;
     }
   }, []);
 
@@ -385,6 +403,7 @@ export default function Index() {
             amrOrders={amrOrders}
             amrOrdersKey={amrOrdersKey}
             onAMRComplete={() => setIsAMRAnimating(false)}
+            onDeliveryComplete={handleDeliveryComplete}
             agvs={agvs}
             amrSpeed={amrSpeed}
           />
@@ -396,6 +415,7 @@ export default function Index() {
             onReset={handleCombinedReset}
             amrSpeed={amrSpeed}
             onAmrSpeedChange={setAmrSpeed}
+            completedTimes={orderCompletedTimes}
           />
         </div>
       </div>

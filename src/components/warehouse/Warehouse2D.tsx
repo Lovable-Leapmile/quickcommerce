@@ -1610,13 +1610,13 @@ export function Warehouse2D({
         for (let i = 0; i < deliverySlotPositions.length; i++) {
           if (!filledDeliverySlotsRef.current.has(i)) {
             const pos = deliverySlotPositions[i];
-            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };
+            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: laneY(horizontalPathsM[0], getAgvLane(agvId)) } };
           }
         }
         // Fallback: center slot
         const centerDeliverySlot = Math.floor(deliverySlots / 2);
         const pos = deliverySlotPositions[centerDeliverySlot];
-        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: pos.my } };
+        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: laneY(horizontalPathsM[0], getAgvLane(agvId)) } };
       }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
       const idx = agvIdx >= 0 ? agvIdx : 0;

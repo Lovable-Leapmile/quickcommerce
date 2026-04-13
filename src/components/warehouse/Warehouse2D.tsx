@@ -18,6 +18,7 @@ interface Warehouse2DProps {
   amrOrdersKey?: number;
   onAMRComplete: () => void;
   agvs: AGVInfo[];
+  amrSpeed?: number;
 }
 
 const PACKING_STATIONS_COUNT = 3;
@@ -104,6 +105,7 @@ export function Warehouse2D({
   amrOrdersKey,
   onAMRComplete,
   agvs,
+  amrSpeed: amrSpeedProp = 0.5,
 }: Warehouse2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -142,11 +144,12 @@ export function Warehouse2D({
     returnWpIdx: number;
     order: AMROrder | null;
     orderQueue: AMROrder[];
-    angle: number; // heading angle in radians
-    stopped: boolean; // collision stop
-    stoppedTimer: number; // seconds stopped
+    angle: number;
+    stopped: boolean;
+    stoppedTimer: number;
     targetPackingStationIdx: number;
     targetPackingSlotIdx: number;
+    currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch";
   }
   const createDefaultAMRState = (): AMRAnimState => ({
     phase: "idle",
@@ -172,6 +175,7 @@ export function Warehouse2D({
     stoppedTimer: 0,
     targetPackingStationIdx: -1,
     targetPackingSlotIdx: -1,
+    currentSegmentKind: "right-vertical",
   });
   const amrAnimMapRef = useRef<Map<number, AMRAnimState>>(new Map());
   const amrRafRef = useRef<number>(0);
@@ -182,6 +186,8 @@ export function Warehouse2D({
   useEffect(() => {
     filledPackingSlotsRef.current = filledPackingSlots;
   }, [filledPackingSlots]);
+  const amrSpeedRef = useRef(amrSpeedProp);
+  useEffect(() => { amrSpeedRef.current = amrSpeedProp; }, [amrSpeedProp]);
 
   const { rows, racks, deep } = params;
   const numAisles = Math.max(1, Math.floor(rows / 2));
@@ -426,7 +432,7 @@ export function Warehouse2D({
       const delta = Math.min((now - amrLastTimeRef.current) / 1000, 0.05);
       amrLastTimeRef.current = now;
 
-      const AMR_SPEED = 0.5;
+      const AMR_SPEED = amrSpeedRef.current;
       const PICKUP_DURATION = 0.8;
       const DROPOFF_DURATION = 0.8;
 
@@ -1565,6 +1571,9 @@ export function Warehouse2D({
 
       const idlePlacement = computeIdlePlacement(agvId);
 
+      // Determine the AGV's actual current segment based on where it is
+      const isFromParking = amrSt.mx === 0 && amrSt.my === 0 || amrSt.currentSegmentKind === "right-vertical";
+
       if (amrSt.mx === 0 && amrSt.my === 0) {
         amrSt.mx = idlePlacement.mx;
         amrSt.my = idlePlacement.my;
@@ -1671,7 +1680,17 @@ export function Warehouse2D({
         const rightLaneMX = laneX("right", agvLaneLocal);
         // Use the exact selected slot branch (no lane-offset detour)
         const stationBranchMY = destMY;
-        const curSegment = idlePlacement.segment;
+        
+        // Determine current segment based on AGV's actual position
+        let curSegment: IdleSegment;
+        if (amrSt.currentSegmentKind === "station-branch") {
+          // AGV is at a station - route via left vertical lane
+          curSegment = { kind: "left-vertical" };
+        } else if (isFromParking) {
+          curSegment = idlePlacement.segment;
+        } else {
+          curSegment = idlePlacement.segment;
+        }
 
         let nearestRackPathMY = horizontalPathsM[0];
         let nearestRackDist = Infinity;
@@ -1684,8 +1703,20 @@ export function Warehouse2D({
         }
         const rackPathMY = laneY(nearestRackPathMY, agvLaneLocal);
 
-        const srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
-        appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        // Build source waypoints - if coming from station, route via left lane
+        let srcWps: { mx: number; my: number }[];
+        if (amrSt.currentSegmentKind === "station-branch") {
+          // From station: go to left lane, then to nearest horizontal path, then to rack
+          srcWps = [];
+          appendWaypoint(srcWps, { mx: curMX, my: curMY });
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: curMY });
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        } else {
+          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        }
 
         const stWps: { mx: number; my: number }[] = [];
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
@@ -1695,15 +1726,16 @@ export function Warehouse2D({
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // Return: retrace the same path back to parking
+        // Return: via AMR paths strictly — left lane → nearest horizontal path → right lane → parking
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        appendWaypoint(returnWps, { mx: destMX, my: stationBranchMY });
+        // Branch back to left lane
         appendWaypoint(returnWps, { mx: leftLaneMX, my: stationBranchMY });
-        // Go on left lane to the rack horizontal path (same one used going)
-        appendWaypoint(returnWps, { mx: leftLaneMX, my: rackPathMY });
-        // Horizontal on that path to right vertical lane
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: rackPathMY });
+        // Find nearest horizontal AMR path to travel to right side
+        const nearestReturnPathMY = findNearestHorizontalPath(stationBranchMY, agvLaneLocal);
+        appendWaypoint(returnWps, { mx: leftLaneMX, my: nearestReturnPathMY });
+        // Horizontal on AMR path to right vertical lane
+        appendWaypoint(returnWps, { mx: rightLaneMX, my: nearestReturnPathMY });
         // Vertical on right lane to parking row
         appendWaypoint(returnWps, { mx: rightLaneMX, my: idlePlacement.my });
         // Horizontal into parking spot
@@ -1719,6 +1751,8 @@ export function Warehouse2D({
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
+        // After dropping at station, AGV will be on a station branch
+        amrSt.currentSegmentKind = "station-branch";
       } else {
         // ====== NEW FLOW: packing station → delivery area ======
         const agvLaneLocal = getAgvLane(agvId);
@@ -1776,6 +1810,7 @@ export function Warehouse2D({
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
+        amrSt.currentSegmentKind = "right-vertical"; // returns to parking
       }
     });
 

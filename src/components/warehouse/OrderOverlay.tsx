@@ -18,15 +18,18 @@ interface OrderOverlayProps {
   onRefetchOrders: () => void;
   onExecute: (payload: CombinedExecutionPayload) => void;
   onReset: () => void;
+  amrSpeed: number;
+  onAmrSpeedChange: (speed: number) => void;
 }
 
 export function OrderOverlay({
   orders,
   ordersLoading,
   onExecute,
+  amrSpeed,
+  onAmrSpeedChange,
 }: OrderOverlayProps) {
   const [agvCounts, setAgvCounts] = useState<Record<number, number>>({});
-  const [amrSpeed, setAmrSpeed] = useState(0.5);
   const [speedOpen, setSpeedOpen] = useState(false);
   const speedRef = useRef<HTMLDivElement>(null);
 
@@ -96,7 +99,7 @@ export function OrderOverlay({
           className="flex items-center gap-1 px-2 py-1 rounded text-xs font-mono bg-card/90 border border-border backdrop-blur-sm text-foreground hover:bg-muted/80 transition-colors"
         >
           <Zap className="h-3 w-3 text-accent" />
-          <span className="text-muted-foreground">AMR</span>
+          <span className="text-muted-foreground">AGV</span>
           <span className="font-semibold">{amrSpeed} m/s</span>
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
@@ -106,7 +109,7 @@ export function OrderOverlay({
               <button
                 key={s.value}
                 type="button"
-                onClick={() => { setAmrSpeed(s.value); setSpeedOpen(false); }}
+                onClick={() => { onAmrSpeedChange(s.value); setSpeedOpen(false); }}
                 className={`flex items-center justify-between w-full px-3 py-1.5 text-xs font-mono hover:bg-muted/60 transition-colors ${
                   amrSpeed === s.value ? "text-accent" : "text-foreground"
                 }`}

@@ -87,6 +87,7 @@ export default function Index() {
   const [amrOrdersKey, setAmrOrdersKey] = useState(0);
   const [isAMRAnimating, setIsAMRAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [amrSpeed, setAmrSpeed] = useState(0.5);
 
   // New project dialog
   const [newProjectOpen, setNewProjectOpen] = useState(false);
@@ -385,6 +386,7 @@ export default function Index() {
             amrOrdersKey={amrOrdersKey}
             onAMRComplete={() => setIsAMRAnimating(false)}
             agvs={agvs}
+            amrSpeed={amrSpeed}
           />
           <OrderOverlay
             orders={combinedOrders}
@@ -392,6 +394,8 @@ export default function Index() {
             onRefetchOrders={refetchCombinedOrders}
             onExecute={handleCombinedExecute}
             onReset={handleCombinedReset}
+            amrSpeed={amrSpeed}
+            onAmrSpeedChange={setAmrSpeed}
           />
         </div>
       </div>

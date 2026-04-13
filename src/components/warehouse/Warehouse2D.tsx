@@ -394,6 +394,7 @@ export function Warehouse2D({
                 st.sourceAisle = rowToAisleSide(src.row).aisleIdx;
                 st.destAisle = rowToAisleSide(dst.row).aisleIdx;
                 st.traySourceKey = `${st.sourceAisle}-${st.sourceRack}-${st.sourceDeepOffset}`;
+                st.itemIndex = next.itemIndex ?? 0;
                 st.phase = "move_to_source";
               } else {
                 st.phase = "done";

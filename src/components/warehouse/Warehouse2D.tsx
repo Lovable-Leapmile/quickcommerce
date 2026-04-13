@@ -1242,7 +1242,7 @@ export function Warehouse2D({
           ctx.font = "bold 6px monospace";
           if (isDropped && packedItemNum) {
             // Show item number with distinct color when filled
-            ctx.fillStyle = "hsl(0, 0%, 100%)";
+            ctx.fillStyle = "hsl(50, 100%, 70%)";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             drawReadableText(`#${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
@@ -1533,8 +1533,8 @@ export function Warehouse2D({
             ctx.fill();
             // Draw item number on shuttle tray
             if (aisleAnim!.itemIndex > 0) {
-              ctx.font = "bold 5px monospace";
-              ctx.fillStyle = "hsl(0, 0%, 100%)";
+              ctx.font = "bold 6px monospace";
+              ctx.fillStyle = "hsl(50, 100%, 70%)";
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
               drawReadableText(`#${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
@@ -2132,8 +2132,8 @@ export function Warehouse2D({
         // Draw item number on AGV tray
         const agvItemIdx = agvAnimState?.order?.itemIndex;
         if (agvItemIdx && agvItemIdx > 0) {
-          ctx.font = "bold 5px monospace";
-          ctx.fillStyle = "hsl(0, 0%, 100%)";
+          ctx.font = "bold 6px monospace";
+          ctx.fillStyle = "hsl(50, 100%, 70%)";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(`#${agvItemIdx}`, 0, -amrH2 / 2 - slotD * 0.15 - 2 + slotD * 0.125);

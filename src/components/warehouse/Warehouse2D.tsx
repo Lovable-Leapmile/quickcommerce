@@ -17,6 +17,7 @@ interface Warehouse2DProps {
   amrOrders: AMROrder[];
   amrOrdersKey?: number;
   onAMRComplete: () => void;
+  onDeliveryComplete?: () => void;
   agvs: AGVInfo[];
   amrSpeed?: number;
 }

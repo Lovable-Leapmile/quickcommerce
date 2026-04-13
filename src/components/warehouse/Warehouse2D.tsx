@@ -1078,11 +1078,16 @@ export function Warehouse2D({
 
         const isCenter = c === centerSlotIdx;
         const isDropped = filledPackingSlotsRef.current.has(`${s}-${c}`);
-        ctx.fillStyle = isCenter ? "hsl(210, 72%, 57%)" : isDropped ? "hsl(220, 12%, 72%)" : "hsl(223, 24%, 20%)";
+        const isDeliveryReady = isCenter && deliveryReadyStationsRef.current.has(s);
+        ctx.fillStyle = isCenter
+          ? (isDeliveryReady ? "hsl(210, 80%, 65%)" : "hsl(210, 72%, 57%)")
+          : isDropped ? "hsl(220, 12%, 72%)" : "hsl(223, 24%, 20%)";
         ctx.beginPath();
         ctx.roundRect(cx, cy, rotatedW, ch, 3);
         ctx.fill();
-        ctx.strokeStyle = isCenter ? "hsl(207, 86%, 74%)" : isDropped ? "hsl(220, 15%, 82%)" : "hsl(224, 22%, 34%)";
+        ctx.strokeStyle = isCenter
+          ? (isDeliveryReady ? "hsl(210, 90%, 80%)" : "hsl(207, 86%, 74%)")
+          : isDropped ? "hsl(220, 15%, 82%)" : "hsl(224, 22%, 34%)";
         ctx.lineWidth = 1.1;
         ctx.stroke();
 
@@ -1094,6 +1099,22 @@ export function Warehouse2D({
           ctx.beginPath();
           ctx.roundRect(cx + 1.5, cy + 1.5, hiW, hiH, 2);
           ctx.stroke();
+          // Delivery tray icon if ready
+          if (isDeliveryReady) {
+            ctx.font = "bold 6px monospace";
+            ctx.fillStyle = "hsl(0, 0%, 100%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText("📦", cx + rotatedW / 2, cy + ch / 2);
+          }
+        } else {
+          // Draw slot number label (1-8, skipping center)
+          const slotNum = c < centerSlotIdx ? c + 1 : c;
+          ctx.font = "bold 6px monospace";
+          ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
         }
       }
 

@@ -693,13 +693,23 @@ export function Warehouse2D({
               });
               reservedPackingSlotsRef.current.delete(key);
 
-              // Start or update consolidation timer for this station
-              const existing = consolidationTimersRef.current.get(stIdx);
-              if (existing) {
-                existing.startTime = performance.now();
-                existing.itemCount += 1;
-              } else {
-                consolidationTimersRef.current.set(stIdx, { startTime: performance.now(), itemCount: 1 });
+              // Track dropped item count for this station
+              const stIdx = st.targetPackingStationIdx;
+              const key = `${stIdx}-${st.targetPackingSlotIdx}`;
+              setFilledPackingSlots((prev) => {
+                const next = new Set(prev);
+                next.add(key);
+                return next;
+              });
+              reservedPackingSlotsRef.current.delete(key);
+
+              // Increment dropped count; start 6s timer only when all expected items are dropped
+              const counts = stationItemCountRef.current.get(stIdx);
+              if (counts) {
+                counts.dropped += 1;
+                if (counts.dropped >= counts.expected && !consolidationTimersRef.current.has(stIdx)) {
+                  consolidationTimersRef.current.set(stIdx, { startTime: performance.now() });
+                }
               }
             }
             // When delivery AGV drops at delivery area, clear the delivery-ready state

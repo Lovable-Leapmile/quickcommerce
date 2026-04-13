@@ -725,13 +725,9 @@ export function Warehouse2D({
                 next.delete(srcStation);
                 return next;
               });
-              // Mark delivery slot as filled (find nearest slot to current position)
-              // We don't track exact slot, so mark next available
-              for (let ds = 0; ds < 5; ds++) {
-                if (!filledDeliverySlotsRef.current.has(ds)) {
-                  filledDeliverySlotsRef.current.add(ds);
-                  break;
-                }
+              // Mark the specific targeted delivery slot as filled (blue)
+              if (st.targetDeliverySlotIdx >= 0) {
+                filledDeliverySlotsRef.current.add(st.targetDeliverySlotIdx);
               }
               // Reset station item count
               stationItemCountRef.current.delete(srcStation);

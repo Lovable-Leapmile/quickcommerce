@@ -189,6 +189,22 @@ export function Warehouse2D({
   const amrSpeedRef = useRef(amrSpeedProp);
   useEffect(() => { amrSpeedRef.current = amrSpeedProp; }, [amrSpeedProp]);
 
+  // Consolidation timer: after all items dropped at a station, wait 6s then move to center blue slot
+  // Map<stationIdx, { startTime: number, itemCount: number }>
+  const consolidationTimersRef = useRef<Map<number, { startTime: number; itemCount: number }>>(new Map());
+  const [deliveryReadyStations, setDeliveryReadyStations] = useState<Set<number>>(new Set());
+  const deliveryReadyStationsRef = useRef<Set<number>>(new Set());
+  useEffect(() => { deliveryReadyStationsRef.current = deliveryReadyStations; }, [deliveryReadyStations]);
+
+  // Track pending delivery dispatch for auto-delivery AGV
+  const pendingDeliveryRef = useRef<number[]>([]);
+
+  // Designate last AGV as delivery AGV (parked at delivery area)
+  const getDeliveryAgvId = useCallback(() => {
+    const agvList = agvs.length > 0 ? agvs : [{ agv_id: 1, agv_name: "agv1" }];
+    return agvList[agvList.length - 1].agv_id;
+  }, [agvs]);
+
   const { rows, racks, deep } = params;
   const numAisles = Math.max(1, Math.floor(rows / 2));
   const rackGap = 0.05;

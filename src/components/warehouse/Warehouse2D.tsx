@@ -696,6 +696,15 @@ export function Warehouse2D({
                 consolidationTimersRef.current.set(stIdx, { startTime: performance.now(), itemCount: 1 });
               }
             }
+            // When delivery AGV drops at delivery area, clear the delivery-ready state
+            if (st.order?.flowType === "station-to-delivery" && st.order?.destIsDelivery) {
+              const srcStation = (st.order.sourceStation || 1) - 1;
+              setDeliveryReadyStations((prev) => {
+                const next = new Set(prev);
+                next.delete(srcStation);
+                return next;
+              });
+            }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;

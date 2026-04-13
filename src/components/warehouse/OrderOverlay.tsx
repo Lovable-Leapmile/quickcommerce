@@ -18,6 +18,8 @@ interface OrderOverlayProps {
   onRefetchOrders: () => void;
   onExecute: (payload: CombinedExecutionPayload) => void;
   onReset: () => void;
+  amrSpeed: number;
+  onAmrSpeedChange: (speed: number) => void;
 }
 
 export function OrderOverlay({

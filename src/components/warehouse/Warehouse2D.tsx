@@ -715,7 +715,7 @@ export function Warehouse2D({
                 }
               }
             }
-            // When delivery AGV drops at delivery area, clear the delivery-ready state
+            // When delivery AGV drops at delivery area, clear the delivery-ready state and mark delivery slot filled
             if (st.order?.flowType === "station-to-delivery" && st.order?.destIsDelivery) {
               const srcStation = (st.order.sourceStation || 1) - 1;
               setDeliveryReadyStations((prev) => {
@@ -723,6 +723,16 @@ export function Warehouse2D({
                 next.delete(srcStation);
                 return next;
               });
+              // Mark delivery slot as filled (find nearest slot to current position)
+              // We don't track exact slot, so mark next available
+              for (let ds = 0; ds < 5; ds++) {
+                if (!filledDeliverySlotsRef.current.has(ds)) {
+                  filledDeliverySlotsRef.current.add(ds);
+                  break;
+                }
+              }
+              // Reset station item count
+              stationItemCountRef.current.delete(srcStation);
             }
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {

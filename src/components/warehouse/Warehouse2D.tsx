@@ -1115,12 +1115,12 @@ export function Warehouse2D({
     // ====== Single Delivery Station at top near x=5m, y=2m ======
     const deliveryWPx = deliveryW_m * ppm;
     const deliveryHPx = deliveryH_m * ppm;
-    // Keep X near previous position, but place entire station with fixed gap from top AMR path
+    // Place delivery station just above the top AMR path with a small gap
     const deliveryCenterPx_x = siteX + 7 * ppm;
-    const deliveryGapFromTopPathPx = 1.0 * ppm;
-    const deliveryCenterPx_y = pathCenterTop - deliveryGapFromTopPathPx - deliveryHPx / 2;
+    const deliveryGapFromTopPathPx = 0.3 * ppm;
+    const deliveryBottomEdgeY = pathCenterTop - laneOffsetPx - deliveryGapFromTopPathPx;
     const deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
-    const deliveryDy = deliveryCenterPx_y - deliveryHPx / 2;
+    const deliveryDy = deliveryBottomEdgeY - deliveryHPx;
 
     // Station base/conveyor (bottom edge)
     ctx.fillStyle = "hsl(160, 30%, 55%)";
@@ -1166,16 +1166,14 @@ export function Warehouse2D({
       }
     }
 
-    // Delivery slot paths: single-line branches per slot, with spacing from the top AMR lane
-    const deliveryCenterX = deliveryDx + deliveryWPx / 2;
-    const deliverySlotPathGap = 1.0 * ppm;
-    const deliveryBranchY = pathCenterTop - deliverySlotPathGap;
+    // Delivery slot paths: branches connecting each slot to the top AMR lane
     const deliverySlotPadX = (deliveryWPx - deliverySlots * slotW) / 2;
     const deliverySlotStartX = deliveryDx + deliverySlotPadX + slotW / 2;
-    const deliverySlotEndX = deliverySlotStartX + (deliverySlots - 1) * slotW;
 
-    // one single branch path per delivery slot
+    // Connect each slot to the outer top lane
     const deliveryJoinY = pathCenterTop - laneOffsetPx;
+    ctx.strokeStyle = "hsla(160, 50%, 50%, 0.5)";
+    ctx.lineWidth = LANE_LINE_W_PX;
     for (let c = 0; c < deliverySlots; c++) {
       const slotCenterX = deliverySlotStartX + c * slotW;
       ctx.beginPath();
@@ -1189,7 +1187,7 @@ export function Warehouse2D({
     ctx.fillStyle = "hsl(160, 50%, 65%)";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    drawReadableText("Delivery Area", deliveryCenterX, deliveryDy - 8);
+    drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
 
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;

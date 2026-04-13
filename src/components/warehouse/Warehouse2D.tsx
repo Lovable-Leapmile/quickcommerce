@@ -430,7 +430,7 @@ export function Warehouse2D({
       const delta = Math.min((now - amrLastTimeRef.current) / 1000, 0.05);
       amrLastTimeRef.current = now;
 
-      const AMR_SPEED = 0.5;
+      const AMR_SPEED = amrSpeedRef.current;
       const PICKUP_DURATION = 0.8;
       const DROPOFF_DURATION = 0.8;
 

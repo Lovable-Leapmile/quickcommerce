@@ -90,20 +90,21 @@ export function CombinedMovementCommand({
 
       // Distribute items across AGVs round-robin
       // Group items by AGV index, then assign agvId = globalAgvOffset + localIdx + 1
-      const itemsByAgv: Map<number, typeof order.items> = new Map();
+      const itemsByAgv: Map<number, { item: typeof order.items[0]; itemIdx: number }[]> = new Map();
       for (let i = 0; i < order.items.length; i++) {
         const agvIdx = i % agvCount;
         if (!itemsByAgv.has(agvIdx)) itemsByAgv.set(agvIdx, []);
-        itemsByAgv.get(agvIdx)!.push(order.items[i]);
+        itemsByAgv.get(agvIdx)!.push({ item: order.items[i], itemIdx: i + 1 });
       }
 
       itemsByAgv.forEach((items, agvIdx) => {
         const assignedAgvId = agvIdx + 1; // AGV IDs start from 1
-        for (const item of items) {
+        for (const { item, itemIdx } of items) {
           // Shuttle: from_location → to_location
           shuttleOrders.push({
             source: { row: item.srcRow, rack: item.srcRack, deep: item.srcDeep, slot: item.srcSlot },
             destination: { row: item.dstRow, rack: item.dstRack, deep: item.dstDeep, slot: item.dstSlot },
+            itemIndex: itemIdx,
           });
 
           // AGV: to_location → packing_location
@@ -117,6 +118,7 @@ export function CombinedMovementCommand({
             rackDeep: item.dstDeep,
             rackSlot: item.dstSlot,
             destStation: item.packingStation,
+            itemIndex: itemIdx,
           });
         }
       });

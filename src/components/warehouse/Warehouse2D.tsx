@@ -74,6 +74,7 @@ interface AnimState {
   traySourceKey: string;
   activeShuttleIdx: number;
   orderQueue: MovementOrder[];
+  itemIndex: number;
 }
 
 function getDeepOffset(addr: SlotAddress): number {
@@ -187,6 +188,8 @@ export function Warehouse2D({
   const [filledPackingSlots, setFilledPackingSlots] = useState<Set<string>>(new Set());
   const filledPackingSlotsRef = useRef<Set<string>>(new Set());
   const reservedPackingSlotsRef = useRef<Set<string>>(new Set());
+  // Track item numbers per packing slot: key "stationIdx-slotIdx" → item number
+  const packedItemNumbersRef = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     filledPackingSlotsRef.current = filledPackingSlots;
   }, [filledPackingSlots]);
@@ -258,6 +261,7 @@ export function Warehouse2D({
         traySourceKey: `${rowToAisleSide(src.row).aisleIdx}-${src.rack - 1}-${getDeepOffset(src)}`,
         activeShuttleIdx: activeIdx,
         orderQueue: [],
+        itemIndex: order.itemIndex ?? 0,
       };
     },
     [shuttleIdlePos],
@@ -392,6 +396,7 @@ export function Warehouse2D({
                 st.sourceAisle = rowToAisleSide(src.row).aisleIdx;
                 st.destAisle = rowToAisleSide(dst.row).aisleIdx;
                 st.traySourceKey = `${st.sourceAisle}-${st.sourceRack}-${st.sourceDeepOffset}`;
+                st.itemIndex = next.itemIndex ?? 0;
                 st.phase = "move_to_source";
               } else {
                 st.phase = "done";
@@ -705,6 +710,10 @@ export function Warehouse2D({
             ) {
               const stIdx = st.targetPackingStationIdx;
               const key = `${stIdx}-${st.targetPackingSlotIdx}`;
+              // Store item number for this packing slot
+              if (st.order?.itemIndex) {
+                packedItemNumbersRef.current.set(key, st.order.itemIndex);
+              }
               setFilledPackingSlots((prev) => {
                 const next = new Set(prev);
                 next.add(key);
@@ -813,7 +822,10 @@ export function Warehouse2D({
           setFilledPackingSlots((prev) => {
             const next = new Set(prev);
             for (let c = 0; c < PACKING_SLOTS_PER_STATION; c++) {
-              if (c !== centerIdx) next.delete(`${stationIdx}-${c}`);
+              if (c !== centerIdx) {
+                next.delete(`${stationIdx}-${c}`);
+                packedItemNumbersRef.current.delete(`${stationIdx}-${c}`);
+              }
             }
             return next;
           });
@@ -1224,13 +1236,22 @@ export function Warehouse2D({
             drawReadableText("📦", cx + rotatedW / 2, cy + ch / 2);
           }
         } else {
-          // Draw slot number label (1-8, skipping center)
+          // Draw slot number or item number label
           const slotNum = c < centerSlotIdx ? c + 1 : c;
+          const packedItemNum = packedItemNumbersRef.current.get(`${s}-${c}`);
           ctx.font = "bold 6px monospace";
-          ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
+          if (isDropped && packedItemNum) {
+            // Show item number with distinct color when filled
+            ctx.fillStyle = "hsl(0, 0%, 100%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`#${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
+          } else {
+            ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            drawReadableText(`${slotNum}`, cx + rotatedW / 2, cy + ch / 2);
+          }
         }
       }
 
@@ -1510,6 +1531,14 @@ export function Warehouse2D({
             ctx.beginPath();
             ctx.roundRect(shuttleX - slotW * 0.35, forkEndY - slotD * 0.2, slotW * 0.7, slotD * 0.4, 2);
             ctx.fill();
+            // Draw item number on shuttle tray
+            if (aisleAnim!.itemIndex > 0) {
+              ctx.font = "bold 5px monospace";
+              ctx.fillStyle = "hsl(0, 0%, 100%)";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              drawReadableText(`#${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
+            }
           }
         }
 
@@ -1959,7 +1988,7 @@ export function Warehouse2D({
         const destMX = destSlotPos.mx;
         const destMY = destSlotPos.my;
 
-        const leftLaneMX = pathLeftM - laneOffsetM;
+        const leftLaneMX = laneX("left", agvLaneLocal);
         const topPathMY = deliveryBranchPathMY;
 
         // ---- Source waypoints: from delivery slot → top AMR path → left lane → station branch → station ----
@@ -2100,6 +2129,15 @@ export function Warehouse2D({
         ctx.strokeStyle = "hsl(210, 60%, 60%)";
         ctx.lineWidth = 0.5;
         ctx.stroke();
+        // Draw item number on AGV tray
+        const agvItemIdx = agvAnimState?.order?.itemIndex;
+        if (agvItemIdx && agvItemIdx > 0) {
+          ctx.font = "bold 5px monospace";
+          ctx.fillStyle = "hsl(0, 0%, 100%)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`#${agvItemIdx}`, 0, -amrH2 / 2 - slotD * 0.15 - 2 + slotD * 0.125);
+        }
       }
 
       ctx.restore();

@@ -121,6 +121,8 @@ export function Warehouse2D({
   const shuttleAnimMapRef = useRef<Map<number, AnimState>>(new Map());
   const [removedTrays, setRemovedTrays] = useState<Set<string>>(new Set());
   const [placedTrays, setPlacedTrays] = useState<{ aisle: number; rack: number; deepOffset: number }[]>([]);
+  // Map source tray key → item number for initial labeling on racks
+  const trayItemLabelsRef = useRef<Map<string, number>>(new Map());
   const rafRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const hitRegionsRef = useRef<HitRegion[]>([]);

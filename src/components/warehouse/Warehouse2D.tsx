@@ -100,6 +100,7 @@ export function Warehouse2D({
   params,
   movementOrders,
   movementOrdersKey,
+  initialTrayLabels = [],
   onAnimationComplete,
   componentStyles,
   onComponentClick,
@@ -272,16 +273,23 @@ export function Warehouse2D({
 
   // When movementOrders changes, group by aisle and populate map
   useEffect(() => {
+    trayItemLabelsRef.current.clear();
+
+    for (const label of initialTrayLabels) {
+      const { aisleIdx } = rowToAisleSide(label.row);
+      const srcRack = label.rack - 1;
+      const srcDeepOffset = getDeepOffset({ row: label.row, rack: label.rack, deep: label.deep, slot: 1 });
+      const key = `${aisleIdx}-${srcRack}-${srcDeepOffset}`;
+      trayItemLabelsRef.current.set(key, label.itemIndex);
+    }
+
     if (movementOrders.length === 0) {
       shuttleAnimMapRef.current.clear();
       setRemovedTrays(new Set());
       setPlacedTrays([]);
-      trayItemLabelsRef.current.clear();
       return;
     }
 
-    // Build tray item labels map from source locations
-    trayItemLabelsRef.current.clear();
     for (const order of movementOrders) {
       if (order.itemIndex) {
         const src = order.source;
@@ -1485,11 +1493,15 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            ctx.font = "bold 6px monospace";
             ctx.fillStyle = "hsl(50, 100%, 70%)";
+            ctx.beginPath();
+            ctx.roundRect(x + 2, y + 3, Math.min(slotW - 4, 18), 10, 3);
+            ctx.fill();
+            ctx.font = "bold 7px monospace";
+            ctx.fillStyle = "hsl(220, 30%, 10%)";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            drawReadableText(`#${itemLabel}`, x + slotW / 2, y + 1 + (slotD - 2) / 2);
+            drawReadableText(`${itemLabel}`, x + 2 + Math.min(slotW - 4, 18) / 2, y + 8);
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
@@ -1610,11 +1622,15 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            ctx.font = "bold 6px monospace";
             ctx.fillStyle = "hsl(50, 100%, 70%)";
+            ctx.beginPath();
+            ctx.roundRect(x + 2, y + 3, Math.min(slotW - 4, 18), 10, 3);
+            ctx.fill();
+            ctx.font = "bold 7px monospace";
+            ctx.fillStyle = "hsl(220, 30%, 10%)";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            drawReadableText(`#${itemLabel}`, x + slotW / 2, y + 1 + (slotD - 2) / 2);
+            drawReadableText(`${itemLabel}`, x + 2 + Math.min(slotW - 4, 18) / 2, y + 8);
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });

@@ -87,7 +87,7 @@ export function OrderOverlay({
   if (ordersLoading || orders.length === 0) return null;
 
   return (
-    <div className="absolute top-3 right-3 z-10 flex items-start gap-2">
+    <div className="absolute top-3 left-3 z-10 flex items-start gap-2">
       {/* AMR Speed selector */}
       <div ref={speedRef} className="relative">
         <button

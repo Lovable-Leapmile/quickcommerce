@@ -1571,6 +1571,9 @@ export function Warehouse2D({
 
       const idlePlacement = computeIdlePlacement(agvId);
 
+      // Determine the AGV's actual current segment based on where it is
+      const isFromParking = amrSt.mx === 0 && amrSt.my === 0 || amrSt.currentSegmentKind === "right-vertical";
+
       if (amrSt.mx === 0 && amrSt.my === 0) {
         amrSt.mx = idlePlacement.mx;
         amrSt.my = idlePlacement.my;

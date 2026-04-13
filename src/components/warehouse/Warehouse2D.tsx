@@ -74,6 +74,7 @@ interface AnimState {
   traySourceKey: string;
   activeShuttleIdx: number;
   orderQueue: MovementOrder[];
+  itemIndex: number;
 }
 
 function getDeepOffset(addr: SlotAddress): number {

@@ -1115,12 +1115,12 @@ export function Warehouse2D({
     // ====== Single Delivery Station at top near x=5m, y=2m ======
     const deliveryWPx = deliveryW_m * ppm;
     const deliveryHPx = deliveryH_m * ppm;
-    // Keep X near previous position, but place entire station with fixed gap from top AMR path
+    // Place delivery station just above the top AMR path with a small gap
     const deliveryCenterPx_x = siteX + 7 * ppm;
-    const deliveryGapFromTopPathPx = 1.0 * ppm;
-    const deliveryCenterPx_y = pathCenterTop - deliveryGapFromTopPathPx - deliveryHPx / 2;
+    const deliveryGapFromTopPathPx = 0.3 * ppm;
+    const deliveryBottomEdgeY = pathCenterTop - laneOffsetPx - deliveryGapFromTopPathPx;
     const deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
-    const deliveryDy = deliveryCenterPx_y - deliveryHPx / 2;
+    const deliveryDy = deliveryBottomEdgeY - deliveryHPx;
 
     // Station base/conveyor (bottom edge)
     ctx.fillStyle = "hsl(160, 30%, 55%)";

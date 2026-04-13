@@ -188,6 +188,8 @@ export function Warehouse2D({
   const [filledPackingSlots, setFilledPackingSlots] = useState<Set<string>>(new Set());
   const filledPackingSlotsRef = useRef<Set<string>>(new Set());
   const reservedPackingSlotsRef = useRef<Set<string>>(new Set());
+  // Track item numbers per packing slot: key "stationIdx-slotIdx" → item number
+  const packedItemNumbersRef = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     filledPackingSlotsRef.current = filledPackingSlots;
   }, [filledPackingSlots]);

@@ -207,6 +207,8 @@ export function Warehouse2D({
   // Track pending delivery dispatch for auto-delivery AGV
   const pendingDeliveryRef = useRef<number[]>([]);
 
+  // (consolidation interval moved below startAMRLoop)
+
   // Designate last AGV as delivery AGV (parked at delivery area)
   const getDeliveryAgvId = useCallback(() => {
     const agvList = agvs.length > 0 ? agvs : [{ agv_id: 1, agv_name: "agv1" }];
@@ -782,12 +784,27 @@ export function Warehouse2D({
         }
       });
 
-      // Check consolidation timers — 6 seconds after last drop, consolidate to center blue slot
-      const now2 = performance.now();
-      const CONSOLIDATION_DELAY = 6000; // 6 seconds
+      // Consolidation and delivery dispatch handled by separate interval effect
+
+      drawCanvasRef.current();
+
+      if (anyActive) {
+        amrRafRef.current = requestAnimationFrame(loop);
+      } else {
+        amrLoopRunning.current = false;
+      }
+    };
+    amrRafRef.current = requestAnimationFrame(loop);
+  }, [onAMRComplete, getDeliveryAgvId]);
+
+  // Separate interval to check consolidation timers even when animation loop is stopped
+  useEffect(() => {
+    const CONSOLIDATION_DELAY = 6000;
+    const interval = setInterval(() => {
+      const now = performance.now();
+      let changed = false;
       consolidationTimersRef.current.forEach((timer, stationIdx) => {
-        if (now2 - timer.startTime >= CONSOLIDATION_DELAY && !deliveryReadyStationsRef.current.has(stationIdx)) {
-          // Consolidate: clear all non-center filled slots for this station, mark center as delivery-ready
+        if (now - timer.startTime >= CONSOLIDATION_DELAY && !deliveryReadyStationsRef.current.has(stationIdx)) {
           const centerIdx = Math.floor(PACKING_SLOTS_PER_STATION / 2);
           setFilledPackingSlots((prev) => {
             const next = new Set(prev);
@@ -801,22 +818,21 @@ export function Warehouse2D({
             next.add(stationIdx);
             return next;
           });
-          // Queue auto-delivery for this station
           pendingDeliveryRef.current.push(stationIdx);
           consolidationTimersRef.current.delete(stationIdx);
+          changed = true;
         }
       });
 
       // Auto-dispatch delivery AGV for pending deliveries
       if (pendingDeliveryRef.current.length > 0) {
-        const deliveryAgvId = getDeliveryAgvId();
-        const deliverySt = amrAnimMapRef.current.get(deliveryAgvId);
+        const delivAgvId = getDeliveryAgvId();
+        const deliverySt = amrAnimMapRef.current.get(delivAgvId);
         const isIdle = !deliverySt || deliverySt.phase === "idle" || deliverySt.phase === "done";
-        if (isIdle && pendingDeliveryRef.current.length > 0) {
+        if (isIdle) {
           const stationIdx = pendingDeliveryRef.current.shift()!;
-          // Create internal delivery order: pick from packing station center → deliver to delivery area
           const deliveryOrder: AMROrder = {
-            agvId: deliveryAgvId,
+            agvId: delivAgvId,
             sourceStation: stationIdx + 1,
             flowType: "station-to-delivery",
             destIsDelivery: true,
@@ -829,23 +845,19 @@ export function Warehouse2D({
           st.initialized = deliverySt?.initialized ?? false;
           st.mx = deliverySt?.mx ?? 0;
           st.my = deliverySt?.my ?? 0;
-          // Mark as delivery segment
-          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "right-vertical";
-          amrAnimMapRef.current.set(deliveryAgvId, st);
-          anyActive = true;
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "delivery-branch";
+          amrAnimMapRef.current.set(delivAgvId, st);
+          startAMRLoop();
+          changed = true;
         }
       }
 
-      drawCanvasRef.current();
-
-      if (anyActive) {
-        amrRafRef.current = requestAnimationFrame(loop);
-      } else {
-        amrLoopRunning.current = false;
+      if (changed) {
+        drawCanvasRef.current();
       }
-    };
-    amrRafRef.current = requestAnimationFrame(loop);
-  }, [onAMRComplete, getDeliveryAgvId]);
+    }, 500);
+    return () => clearInterval(interval);
+  }, [getDeliveryAgvId, startAMRLoop]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;

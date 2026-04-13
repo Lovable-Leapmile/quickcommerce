@@ -1680,7 +1680,17 @@ export function Warehouse2D({
         const rightLaneMX = laneX("right", agvLaneLocal);
         // Use the exact selected slot branch (no lane-offset detour)
         const stationBranchMY = destMY;
-        const curSegment = idlePlacement.segment;
+        
+        // Determine current segment based on AGV's actual position
+        let curSegment: IdleSegment;
+        if (amrSt.currentSegmentKind === "station-branch") {
+          // AGV is at a station - route via left vertical lane
+          curSegment = { kind: "left-vertical" };
+        } else if (isFromParking) {
+          curSegment = idlePlacement.segment;
+        } else {
+          curSegment = idlePlacement.segment;
+        }
 
         let nearestRackPathMY = horizontalPathsM[0];
         let nearestRackDist = Infinity;
@@ -1693,8 +1703,20 @@ export function Warehouse2D({
         }
         const rackPathMY = laneY(nearestRackPathMY, agvLaneLocal);
 
-        const srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
-        appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        // Build source waypoints - if coming from station, route via left lane
+        let srcWps: { mx: number; my: number }[];
+        if (amrSt.currentSegmentKind === "station-branch") {
+          // From station: go to left lane, then to nearest horizontal path, then to rack
+          srcWps = [];
+          appendWaypoint(srcWps, { mx: curMX, my: curMY });
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: curMY });
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        } else {
+          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
+        }
 
         const stWps: { mx: number; my: number }[] = [];
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });

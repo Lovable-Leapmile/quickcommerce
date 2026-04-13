@@ -1920,48 +1920,69 @@ export function Warehouse2D({
         amrSt.targetPackingStationIdx = -1;
         amrSt.targetPackingSlotIdx = -1;
 
+        // Source: packing station center slot
         const srcStationIdx = (order.sourceStation || 1) - 1;
-        const srcSy = stationsStartY + srcStationIdx * (stationHPx + stationGapPx) + stationHPx / 2;
+        const centerSlotIdx = Math.floor(packingSlotsPerStation / 2);
+        const srcSy = getPackingSlotCenterY(srcStationIdx, centerSlotIdx);
         const srcSx = stationsX + stationWPx;
         const srcMX = toMX(srcSx);
         const srcMY = toMY(srcSy);
 
-        const destDx = deliveryDx + deliveryWPx / 2;
-        const destDy = deliveryDy + deliveryHPx;
-        const destMX = toMX(destDx);
-        const destMY = toMY(destDy);
+        // Destination: first available delivery slot
+        let targetDelivSlot = 0;
+        for (let ds = 0; ds < deliverySlots; ds++) {
+          if (!filledDeliverySlotsRef.current.has(ds)) {
+            targetDelivSlot = ds;
+            break;
+          }
+        }
+        amrSt.targetDeliverySlotIdx = targetDelivSlot;
+
+        const destSlotPos = deliverySlotPositions[targetDelivSlot];
+        const destMX = destSlotPos.mx;
+        const destMY = destSlotPos.my;
 
         const leftLaneMX = laneX("left", agvLaneLocal);
         const rightLaneMX = laneX("right", agvLaneLocal);
-        const srcBranchMY = laneY(srcMY, agvLaneLocal);
         const topPathMY = laneY(horizontalPathsM[0], agvLaneLocal);
-        const deliveryBranchMX = destMX + laneOffsetFor(agvLaneLocal);
-        const curSegment = idlePlacement.segment;
 
-        const srcWps = buildRouteToPoint(curMX, curMY, curSegment, leftLaneMX, srcBranchMY, agvLaneLocal);
-        appendWaypoint(srcWps, { mx: srcMX, my: srcBranchMY });
+        // ---- Source waypoints: from delivery slot → top AMR path → left lane → station branch → station ----
+        const srcWps: { mx: number; my: number }[] = [];
+        appendWaypoint(srcWps, { mx: curMX, my: curMY });
+
+        if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
+          // From delivery slot: go vertically down to top AMR path via delivery branch
+          appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
+          // Go horizontally on top path to left vertical lane
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
+        } else {
+          // Already on a path somewhere, route via left lane
+          const nearHP = findNearestHorizontalPath(curMY, agvLaneLocal);
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: nearHP });
+        }
+        // Go vertically on left lane to station branch Y
+        const stationBranchMY = srcMY;
+        appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
+        // Go horizontally on station branch to packing station
+        appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
         appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
 
+        // ---- Station waypoints: station → left lane → top path → delivery branch → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
-        appendWaypoint(stWps, { mx: srcMX, my: srcBranchMY });
-        appendWaypoint(stWps, { mx: leftLaneMX, my: srcBranchMY });
+        appendWaypoint(stWps, { mx: srcMX, my: stationBranchMY });
+        appendWaypoint(stWps, { mx: leftLaneMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: leftLaneMX, my: topPathMY });
-        appendWaypoint(stWps, { mx: deliveryBranchMX, my: topPathMY });
-        appendWaypoint(stWps, { mx: deliveryBranchMX, my: destMY });
+        // Go horizontally on top path to delivery branch X
+        appendWaypoint(stWps, { mx: destMX, my: topPathMY });
+        // Go vertically up on delivery branch to delivery slot
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // Return: retrace the same route back to parking via AMR paths
+        // ---- Return waypoints: delivery slot is already the parking spot ----
+        // The delivery AGV stays at the delivery slot after dropping
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        appendWaypoint(returnWps, { mx: deliveryBranchMX, my: destMY });
-        appendWaypoint(returnWps, { mx: deliveryBranchMX, my: topPathMY });
-        // Go on top path to right vertical lane
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: topPathMY });
-        // Vertical on right lane to parking row
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: idlePlacement.my });
-        // Horizontal into parking spot
-        appendWaypoint(returnWps, { mx: idlePlacement.mx, my: idlePlacement.my });
+        // Stay here — this IS the parking spot
 
         amrSt.sourceWaypoints = srcWps;
         amrSt.stationWaypoints = stWps;
@@ -1971,7 +1992,7 @@ export function Warehouse2D({
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
-        amrSt.currentSegmentKind = "right-vertical"; // returns to parking
+        amrSt.currentSegmentKind = "delivery-branch"; // after delivery, AGV is at delivery branch
       }
     });
 

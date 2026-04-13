@@ -140,6 +140,11 @@ export default function Index() {
   const totalSlots = params.rows * params.racks * params.slotsPerRack * params.deep;
 
   const handleCombinedExecute = useCallback((payload: CombinedExecutionPayload) => {
+    // Track order start time
+    if (payload.orderId != null) {
+      activeOrderIdRef.current = payload.orderId;
+      orderStartTimeRef.current = Date.now();
+    }
     // Dispatch shuttle orders
     if (payload.shuttleOrders.length > 0) {
       setMovementOrders(payload.shuttleOrders);
@@ -151,6 +156,16 @@ export default function Index() {
       setAmrOrders(payload.amrOrders.map((o) => ({ ...o })));
       setAmrOrdersKey((k) => k + 1);
       setIsAMRAnimating(true);
+    }
+  }, []);
+
+  const handleDeliveryComplete = useCallback(() => {
+    if (activeOrderIdRef.current != null && orderStartTimeRef.current != null) {
+      const elapsed = (Date.now() - orderStartTimeRef.current) / 1000;
+      const orderId = activeOrderIdRef.current;
+      setOrderCompletedTimes((prev) => ({ ...prev, [orderId]: elapsed }));
+      activeOrderIdRef.current = null;
+      orderStartTimeRef.current = null;
     }
   }, []);
 

@@ -105,6 +105,7 @@ export function Warehouse2D({
   amrOrders,
   amrOrdersKey,
   onAMRComplete,
+  onDeliveryComplete,
   agvs,
   amrSpeed: amrSpeedProp = 0.5,
 }: Warehouse2DProps) {

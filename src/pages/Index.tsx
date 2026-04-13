@@ -88,6 +88,9 @@ export default function Index() {
   const [isAMRAnimating, setIsAMRAnimating] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [amrSpeed, setAmrSpeed] = useState(0.5);
+  const orderStartTimeRef = useRef<number | null>(null);
+  const [orderCompletedTimes, setOrderCompletedTimes] = useState<Record<number, number>>({});
+  const activeOrderIdRef = useRef<number | null>(null);
 
   // New project dialog
   const [newProjectOpen, setNewProjectOpen] = useState(false);

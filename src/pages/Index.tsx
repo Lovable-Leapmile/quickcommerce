@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { WarehouseConfig, StatCard, type WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 import { useStoreParams } from "@/hooks/useStoreParams";
 import { useAGVs } from "@/hooks/useAGVs";

@@ -425,6 +425,19 @@ export function Warehouse2D({
       ordersByAgv.set(order.agvId, list);
     }
 
+    // Count expected items per packing station for this batch
+    for (const order of amrOrders) {
+      if (order.flowType === "rack-to-station" && order.destStation) {
+        const stIdx = Math.min(Math.max((order.destStation) - 1, 0), PACKING_STATIONS_COUNT - 1);
+        const existing = stationItemCountRef.current.get(stIdx);
+        if (existing) {
+          existing.expected += 1;
+        } else {
+          stationItemCountRef.current.set(stIdx, { expected: 1, dropped: 0 });
+        }
+      }
+    }
+
     ordersByAgv.forEach((agvOrderList, agvId) => {
       const existing = amrAnimMapRef.current.get(agvId);
       const st = createDefaultAMRState();

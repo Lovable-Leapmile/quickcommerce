@@ -114,6 +114,15 @@ export default function Index() {
     slotsPerStation: activeProject?.params?.slotsPerStation ?? storeParams.slotsPerStation,
   };
 
+  const initialTrayLabels = combinedOrders.flatMap((order) =>
+    order.items.map((item, idx) => ({
+      row: item.srcRow,
+      rack: item.srcRack,
+      deep: item.srcDeep,
+      itemIndex: idx + 1,
+    })),
+  );
+
   const componentStyles = activeProject?.componentStyles ?? defaultComponentStyles;
   const [savedStyles, setSavedStyles] = useState<ComponentStyles>(defaultComponentStyles);
 
@@ -396,6 +405,7 @@ export default function Index() {
             params={params}
             movementOrders={movementOrders}
             movementOrdersKey={movementOrdersKey}
+            initialTrayLabels={initialTrayLabels}
             onAnimationComplete={() => setIsAnimating(false)}
             componentStyles={componentStyles}
             onComponentClick={handleComponentClick}

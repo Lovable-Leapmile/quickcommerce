@@ -693,16 +693,6 @@ export function Warehouse2D({
               });
               reservedPackingSlotsRef.current.delete(key);
 
-              // Track dropped item count for this station
-              const stIdx = st.targetPackingStationIdx;
-              const key = `${stIdx}-${st.targetPackingSlotIdx}`;
-              setFilledPackingSlots((prev) => {
-                const next = new Set(prev);
-                next.add(key);
-                return next;
-              });
-              reservedPackingSlotsRef.current.delete(key);
-
               // Increment dropped count; start 6s timer only when all expected items are dropped
               const counts = stationItemCountRef.current.get(stIdx);
               if (counts) {

@@ -1117,7 +1117,7 @@ export function Warehouse2D({
     const deliveryHPx = deliveryH_m * ppm;
     // Place delivery station just above the top AMR path with a small gap
     const deliveryCenterPx_x = startX + layoutW - deliveryWPx / 2 - 6 * ppm;
-    const deliveryGapFromTopPathPx = 0.3 * ppm;
+    const deliveryGapFromTopPathPx = 0.8 * ppm;
     const deliveryBottomEdgeY = pathCenterTop - laneOffsetPx - deliveryGapFromTopPathPx;
     const deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
     const deliveryDy = deliveryBottomEdgeY - deliveryHPx;

@@ -1672,20 +1672,7 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            const badge = getItemBadgeStyle(itemLabel);
-            ctx.fillStyle = badge.bg;
-            ctx.beginPath();
-            const badgeW = Math.max(18, Math.min(slotW - 4, 26));
-            ctx.roundRect(x + 2, y + 2, badgeW, 11, 3);
-            ctx.fill();
-            ctx.strokeStyle = badge.border;
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-            ctx.font = "bold 8px monospace";
-            ctx.fillStyle = badge.text;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            drawReadableText(`${itemLabel}`, x + 2 + badgeW / 2, y + 7.5);
+            drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });

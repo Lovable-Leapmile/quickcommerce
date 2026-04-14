@@ -2159,13 +2159,15 @@ export function Warehouse2D({
         amrSt.stationWaypoints = stWps;
         amrSt.returnWaypoints = returnWps;
         
-        // For delivery AGV that's already at packing station, skip to_source phase
+        // For delivery AGV that's already at packing station, skip travel-to-source
+        // but still perform the pickup before leaving for delivery.
         if (agvId === deliveryAgvId && (amrSt.currentSegmentKind === "station-branch" || !amrSt.initialized)) {
-          amrSt.phase = "to_station"; // Skip to_source, go directly to station
+          amrSt.phase = "pickup";
           amrSt.mx = srcMX;
           amrSt.my = srcMY;
+          amrSt.pickupTimer = 0;
           amrSt.sourceWpIdx = srcWps.length; // Mark source waypoints as complete
-          amrSt.stationWpIdx = 0; // Start station waypoints from beginning
+          amrSt.stationWpIdx = stWps.length > 1 ? 1 : 0; // Leave from source after pickup
         } else {
           amrSt.mx = srcWps.length > 0 ? srcWps[0].mx : curMX;
           amrSt.my = srcWps.length > 0 ? srcWps[0].my : curMY;

@@ -365,6 +365,8 @@ export function Warehouse2D({
               st.forkExtend = st.sourceDeepOffset;
               st.hasTray = true;
               setRemovedTrays((prev) => new Set(prev).add(st.traySourceKey));
+              // Remove item label from the source rack so it only shows on the moving tray
+              trayItemLabelsRef.current.delete(st.traySourceKey);
               st.phase = "pickup_hold";
               st.phaseTimer = 0;
             } else {
@@ -1576,9 +1578,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Keep the item number visible on the tray while it is still the active tracked item.
+          // Draw item number label if this tray is a source for an order item (hidden once picked up)
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel) {
+          if (itemLabel && !isRemoved) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 
@@ -1696,9 +1698,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Keep the item number visible on the tray while it is still the active tracked item.
+          // Draw item number label if this tray is a source for an order item (hidden once picked up)
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel) {
+          if (itemLabel && !isRemoved) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 

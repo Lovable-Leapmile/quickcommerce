@@ -25,6 +25,16 @@ interface Warehouse2DProps {
 
 const PACKING_STATIONS_COUNT = 3;
 const PACKING_SLOTS_PER_STATION = 9;
+const SHUTTLE_PICK_HOLD_S = 0.28;
+const SHUTTLE_DROP_HOLD_S = 0.32;
+const ITEM_BADGE_PALETTE = [
+  { bg: "hsl(350, 72%, 36%)", border: "hsl(350, 86%, 62%)", text: "hsl(0, 0%, 98%)" },
+  { bg: "hsl(206, 72%, 34%)", border: "hsl(206, 88%, 63%)", text: "hsl(0, 0%, 98%)" },
+  { bg: "hsl(132, 58%, 31%)", border: "hsl(132, 72%, 58%)", text: "hsl(0, 0%, 98%)" },
+  { bg: "hsl(36, 76%, 36%)", border: "hsl(36, 90%, 64%)", text: "hsl(0, 0%, 98%)" },
+  { bg: "hsl(276, 64%, 34%)", border: "hsl(276, 82%, 66%)", text: "hsl(0, 0%, 98%)" },
+  { bg: "hsl(186, 72%, 33%)", border: "hsl(186, 88%, 63%)", text: "hsl(0, 0%, 98%)" },
+];
 
 const SLOT_W_M = 0.4;
 const SLOT_D_M = 0.6;
@@ -55,9 +65,11 @@ type AnimPhase =
   | "idle"
   | "move_to_source"
   | "extend_to_source"
+  | "pickup_hold"
   | "retract_from_source"
   | "move_to_dest"
   | "extend_to_dest"
+  | "dropoff_hold"
   | "retract_from_dest"
   | "done";
 
@@ -76,6 +88,7 @@ interface AnimState {
   activeShuttleIdx: number;
   orderQueue: MovementOrder[];
   itemIndex: number;
+  phaseTimer: number;
 }
 
 function getDeepOffset(addr: SlotAddress): number {
@@ -266,6 +279,7 @@ export function Warehouse2D({
         activeShuttleIdx: activeIdx,
         orderQueue: [],
         itemIndex: order.itemIndex ?? 0,
+        phaseTimer: 0,
       };
     },
     [shuttleIdlePos],
@@ -360,9 +374,18 @@ export function Warehouse2D({
               st.forkExtend = st.sourceDeepOffset;
               st.hasTray = true;
               setRemovedTrays((prev) => new Set(prev).add(st.traySourceKey));
-              st.phase = "retract_from_source";
+              st.phase = "pickup_hold";
+              st.phaseTimer = 0;
             } else {
               st.forkExtend += Math.sign(diff) * FORK_SPEED * delta;
+            }
+            break;
+          }
+          case "pickup_hold": {
+            st.phaseTimer += delta;
+            if (st.phaseTimer >= SHUTTLE_PICK_HOLD_S) {
+              st.phase = "retract_from_source";
+              st.phaseTimer = 0;
             }
             break;
           }
@@ -391,6 +414,7 @@ export function Warehouse2D({
             if (Math.abs(diff) < 0.02) {
               st.forkExtend = st.destDeepOffset;
               st.hasTray = false;
+              trayItemLabelsRef.current.set(`${st.destAisle}-${st.destRack}-${st.destDeepOffset}`, st.itemIndex);
               setPlacedTrays((prev) => [
                 ...prev,
                 {
@@ -399,9 +423,18 @@ export function Warehouse2D({
                   deepOffset: st.destDeepOffset,
                 },
               ]);
-              st.phase = "retract_from_dest";
+              st.phase = "dropoff_hold";
+              st.phaseTimer = 0;
             } else {
               st.forkExtend += Math.sign(diff) * FORK_SPEED * delta;
+            }
+            break;
+          }
+          case "dropoff_hold": {
+            st.phaseTimer += delta;
+            if (st.phaseTimer >= SHUTTLE_DROP_HOLD_S) {
+              st.phase = "retract_from_dest";
+              st.phaseTimer = 0;
             }
             break;
           }
@@ -422,6 +455,7 @@ export function Warehouse2D({
                 st.destAisle = rowToAisleSide(dst.row).aisleIdx;
                 st.traySourceKey = `${st.sourceAisle}-${st.sourceRack}-${st.sourceDeepOffset}`;
                 st.itemIndex = next.itemIndex ?? 0;
+                st.phaseTimer = 0;
                 st.phase = "move_to_source";
               } else {
                 st.phase = "done";
@@ -714,6 +748,14 @@ export function Warehouse2D({
           st.pickupTimer += delta;
           if (st.pickupTimer >= PICKUP_DURATION) {
             st.hasTray = true;
+            // Get item information from packing slot when picking up
+            if (st.order?.flowType === "station-to-delivery" && st.targetPackingStationIdx >= 0 && st.targetPackingSlotIdx >= 0) {
+              const key = `${st.targetPackingStationIdx}-${st.targetPackingSlotIdx}`;
+              const itemNumber = packedItemNumbersRef.current.get(key);
+              if (itemNumber && !st.order?.itemIndex) {
+                st.order = { ...st.order!, itemIndex: itemNumber };
+              }
+            }
             st.phase = "to_station";
           }
         } else if (st.phase === "to_station") {
@@ -901,24 +943,27 @@ export function Warehouse2D({
   }, [getDeliveryAgvId, startAMRLoop]);
 
   const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    try {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return; // Prevent zero dimensions
+      
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const W = rect.width;
-    const H = rect.height;
+      const W = rect.width;
+      const H = rect.height;
 
-    ctx.fillStyle = "hsl(225, 15%, 12%)";
-    ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = "hsl(225, 15%, 12%)";
+      ctx.fillRect(0, 0, W, H);
 
-    if (rows <= 0 || racks <= 0 || deep <= 0) return;
+      if (rows <= 0 || racks <= 0 || deep <= 0) return;
 
     const hitRegions: HitRegion[] = [];
 
@@ -949,6 +994,10 @@ export function Warehouse2D({
       const n = normalizeAngle(rot);
       return (n > Math.PI / 2 && n < 3 * Math.PI / 2) ? Math.PI : 0;
     })();
+    const getItemBadgeStyle = (itemNumber: number) => {
+      const idx = Math.max(0, (itemNumber || 1) - 1) % ITEM_BADGE_PALETTE.length;
+      return ITEM_BADGE_PALETTE[idx];
+    };
 
     const padding = 60;
 
@@ -1270,7 +1319,7 @@ export function Warehouse2D({
             ctx.fillStyle = "hsl(50, 100%, 70%)";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            drawReadableText(`#${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
+            drawReadableText(`${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
           } else {
             ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
             ctx.textAlign = "center";
@@ -1493,15 +1542,20 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            ctx.fillStyle = "hsl(50, 100%, 70%)";
+            const badge = getItemBadgeStyle(itemLabel);
+            ctx.fillStyle = badge.bg;
             ctx.beginPath();
-            ctx.roundRect(x + 2, y + 3, Math.min(slotW - 4, 18), 10, 3);
+            const badgeW = Math.max(18, Math.min(slotW - 4, 26));
+            ctx.roundRect(x + 2, y + 2, badgeW, 11, 3);
             ctx.fill();
-            ctx.font = "bold 7px monospace";
-            ctx.fillStyle = "hsl(220, 30%, 10%)";
+            ctx.strokeStyle = badge.border;
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.font = "bold 8px monospace";
+            ctx.fillStyle = badge.text;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            drawReadableText(`${itemLabel}`, x + 2 + Math.min(slotW - 4, 18) / 2, y + 8);
+            drawReadableText(`${itemLabel}`, x + 2 + badgeW / 2, y + 7.5);
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
@@ -1542,7 +1596,7 @@ export function Warehouse2D({
       const aisleAnim = shuttleAnimMapRef.current.get(a);
       const aisleIsAnimating = aisleAnim ? aisleAnim.phase !== "idle" && aisleAnim.phase !== "done" : false;
       const shuttleCenterY = aisleTopY + aisleH / 2;
-      const sSize = Math.min(aisleH * 0.9, slotW * 0.7);
+      const sSize = Math.min(aisleH * 1.35, slotW * 1.4);
 
       // Draw two shuttles per aisle
       for (let si = 0; si < 2; si++) {
@@ -1558,25 +1612,37 @@ export function Warehouse2D({
           const forkStartY = shuttleCenterY;
           const forkEndY = forkStartY + forkDir * forkLength;
 
-          ctx.strokeStyle = "hsl(40, 70%, 50%)";
-          ctx.lineWidth = 3;
+          ctx.strokeStyle = "hsl(38, 95%, 62%)";
+          ctx.lineWidth = 4;
           ctx.beginPath();
           ctx.moveTo(shuttleX, forkStartY);
           ctx.lineTo(shuttleX, forkEndY);
           ctx.stroke();
+          ctx.fillStyle = "hsl(38, 90%, 68%)";
+          ctx.beginPath();
+          ctx.roundRect(shuttleX - 4, forkEndY - 4, 8, 8, 2);
+          ctx.fill();
 
           if (aisleAnim!.hasTray) {
             ctx.fillStyle = trayColor;
             ctx.beginPath();
-            ctx.roundRect(shuttleX - slotW * 0.35, forkEndY - slotD * 0.2, slotW * 0.7, slotD * 0.4, 2);
+            ctx.roundRect(shuttleX - slotW * 0.45, forkEndY - slotD * 0.22, slotW * 0.9, slotD * 0.44, 2);
             ctx.fill();
             // Draw item number on shuttle tray
             if (aisleAnim!.itemIndex > 0) {
-              ctx.font = "bold 6px monospace";
-              ctx.fillStyle = "hsl(50, 100%, 70%)";
+              const badge = getItemBadgeStyle(aisleAnim!.itemIndex);
+              ctx.fillStyle = badge.bg;
+              ctx.beginPath();
+              ctx.roundRect(shuttleX - 8, forkEndY - 5, 16, 10, 3);
+              ctx.fill();
+              ctx.font = "bold 8px monospace";
+              ctx.strokeStyle = badge.border;
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+              ctx.fillStyle = badge.text;
               ctx.textAlign = "center";
               ctx.textBaseline = "middle";
-              drawReadableText(`#${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
+              drawReadableText(`${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
             }
           }
         }
@@ -1622,15 +1688,20 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            ctx.fillStyle = "hsl(50, 100%, 70%)";
+            const badge = getItemBadgeStyle(itemLabel);
+            ctx.fillStyle = badge.bg;
             ctx.beginPath();
-            ctx.roundRect(x + 2, y + 3, Math.min(slotW - 4, 18), 10, 3);
+            const badgeW = Math.max(18, Math.min(slotW - 4, 26));
+            ctx.roundRect(x + 2, y + 2, badgeW, 11, 3);
             ctx.fill();
-            ctx.font = "bold 7px monospace";
-            ctx.fillStyle = "hsl(220, 30%, 10%)";
+            ctx.strokeStyle = badge.border;
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.font = "bold 8px monospace";
+            ctx.fillStyle = badge.text;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            drawReadableText(`${itemLabel}`, x + 2 + Math.min(slotW - 4, 18) / 2, y + 8);
+            drawReadableText(`${itemLabel}`, x + 2 + badgeW / 2, y + 7.5);
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
@@ -1682,7 +1753,7 @@ export function Warehouse2D({
     const nearlySamePoint = (a: { mx: number; my: number }, b: { mx: number; my: number }) =>
       Math.abs(a.mx - b.mx) < 0.001 && Math.abs(a.my - b.my) < 0.001;
 
-    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number };
+    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number } | { kind: "station-branch" };
 
     type IdlePlacement = {
       mx: number;
@@ -1702,31 +1773,6 @@ export function Warehouse2D({
     // Each AGV gets parked in the right-side parking area, except the last one which parks at delivery area
     const deliveryAgvId = getDeliveryAgvId();
     const deliveryBranchPathMY = pathTopM - laneOffsetM;
-    const computeIdlePlacement = (agvId: number): IdlePlacement => {
-      // Last AGV parks at the delivery area (first empty slot)
-      if (agvId === deliveryAgvId && deliverySlotPositions.length > 0) {
-        // Find first empty delivery slot
-        for (let i = 0; i < deliverySlotPositions.length; i++) {
-          if (!filledDeliverySlotsRef.current.has(i)) {
-            const pos = deliverySlotPositions[i];
-            return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: deliveryBranchPathMY } };
-          }
-        }
-        // Fallback: center slot
-        const centerDeliverySlot = Math.floor(deliverySlots / 2);
-        const pos = deliverySlotPositions[centerDeliverySlot];
-        return { mx: pos.mx, my: pos.my, segment: { kind: "horizontal", pathY: deliveryBranchPathMY } };
-      }
-      const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
-      const idx = agvIdx >= 0 ? agvIdx : 0;
-      const parkIdx = idx % parkingPositions.length;
-      const spot = parkingPositions[parkIdx];
-      if (spot) {
-        return { mx: spot.mx, my: spot.my, segment: { kind: "right-vertical" } };
-      }
-      // Fallback: right vertical lane
-      return { mx: pathRightM + laneOffsetM, my: pathTopM + laneOffsetM, segment: { kind: "right-vertical" } };
-    };
 
     const appendWaypoint = (points: { mx: number; my: number }[], point: { mx: number; my: number }) => {
       const last = points[points.length - 1];
@@ -1772,7 +1818,17 @@ export function Warehouse2D({
         return route;
       }
 
-      if (startSegment.kind === "left-vertical" || startSegment.kind === "right-vertical") {
+      if (startSegment.kind === "station-branch") {
+        // From station branch: go to left vertical lane, then to target
+        const leftVerticalMX = laneX("left", lane);
+        // Go horizontally from station to left lane
+        appendWaypoint(route, { mx: leftVerticalMX, my: startMY });
+        // Go vertically on left lane to target path Y
+        appendWaypoint(route, { mx: leftVerticalMX, my: targetPathY });
+        // Go horizontally to target
+        appendWaypoint(route, { mx: targetMX, my: targetPathY });
+        return route;
+      } else if (startSegment.kind === "left-vertical" || startSegment.kind === "right-vertical") {
         // From parking: go horizontally to the vertical lane, then strictly on AMR grid
         const verticalLaneMX = startSegment.kind === "right-vertical" ? rightVerticalMX : leftVerticalMX;
         // Step 1: horizontal move from parking spot to the vertical lane
@@ -1821,6 +1877,31 @@ export function Warehouse2D({
       appendWaypoint(route, { mx: viaX, my: targetPathY });
       appendWaypoint(route, { mx: targetMX, my: targetPathY });
       return route;
+    };
+
+    const computeIdlePlacement = (agvId: number): IdlePlacement => {
+      // Last AGV (delivery AGV) starts at order packing station instead of delivery area
+      if (agvId === deliveryAgvId) {
+        // Position at the center of the first packing station (order bin location)
+        const stationIdx = 0; // First packing station
+        const centerSlotIdx = Math.floor(packingSlotsPerStation / 2);
+        const stationY = getPackingSlotCenterY(stationIdx, centerSlotIdx);
+        const stationX = stationsX + stationWPx;
+        return { 
+          mx: toMX(stationX), 
+          my: toMY(stationY), 
+          segment: { kind: "station-branch" } 
+        };
+      }
+      const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
+      const idx = agvIdx >= 0 ? agvIdx : 0;
+      const parkIdx = idx % parkingPositions.length;
+      const spot = parkingPositions[parkIdx];
+      if (spot) {
+        return { mx: spot.mx, my: spot.my, segment: { kind: "right-vertical" } };
+      }
+      // Fallback: right vertical lane
+      return { mx: pathRightM + laneOffsetM, my: pathTopM + laneOffsetM, segment: { kind: "right-vertical" } };
     };
 
     // ====== Compute waypoints for ALL active AGVs in the map ======
@@ -2006,8 +2087,8 @@ export function Warehouse2D({
         amrSt.returnWaypoints = returnWps;
         amrSt.targetPackingStationIdx = destStationIdx;
         amrSt.targetPackingSlotIdx = destSlotIdx;
-        amrSt.mx = srcWps[0].mx;
-        amrSt.my = srcWps[0].my;
+        amrSt.mx = srcWps.length > 0 ? srcWps[0].mx : curMX;
+        amrSt.my = srcWps.length > 0 ? srcWps[0].my : curMY;
         amrSt.sourceWpIdx = 1;
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
@@ -2044,31 +2125,38 @@ export function Warehouse2D({
         const leftLaneMX = laneX("left", agvLaneLocal);
         const topPathMY = deliveryBranchPathMY;
 
-        // ---- Source waypoints: from delivery slot → top AMR path → left lane → station branch → station ----
+        // ---- Source waypoints: delivery AGV is already at packing station ----
         const srcWps: { mx: number; my: number }[] = [];
-        appendWaypoint(srcWps, { mx: curMX, my: curMY });
-
-        if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
-          // From delivery slot: go vertically down to top AMR path via delivery branch
-          appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
-          // Go horizontally on top path to left vertical lane
-          appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
+        const stationBranchMY = srcMY; // Define stationBranchMY in proper scope
+        
+        if (agvId === deliveryAgvId && (amrSt.currentSegmentKind === "station-branch" || !amrSt.initialized)) {
+          // Delivery AGV starts at packing station, no need to move
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         } else {
-          const curSegment: IdleSegment =
-            amrSt.currentSegmentKind === "left-vertical"
-              ? { kind: "left-vertical" }
-              : amrSt.currentSegmentKind === "horizontal"
-                ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
-                : { kind: "right-vertical" };
-          const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
-          strictRoute.forEach((point) => appendWaypoint(srcWps, point));
+          // Other AGVs: current position to packing station
+          appendWaypoint(srcWps, { mx: curMX, my: curMY });
+          
+          if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
+            // From delivery slot: go vertically down to top AMR path via delivery branch
+            appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
+            // Go horizontally on top path to left vertical lane
+            appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
+          } else {
+            const curSegment: IdleSegment =
+              amrSt.currentSegmentKind === "left-vertical"
+                ? { kind: "left-vertical" }
+                : amrSt.currentSegmentKind === "horizontal"
+                  ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
+                  : { kind: "right-vertical" };
+            const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
+            strictRoute.forEach((point) => appendWaypoint(srcWps, point));
+          }
+          // Go vertically on left lane to station branch Y
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
+          // Go horizontally on station branch to packing station
+          appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
-        // Go vertically on left lane to station branch Y
-        const stationBranchMY = srcMY;
-        appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
-        // Go horizontally on station branch to packing station
-        appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
-        appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
 
         // ---- Station waypoints: station → left lane → top path → delivery branch → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
@@ -2081,21 +2169,40 @@ export function Warehouse2D({
         // Go vertically up on delivery branch to delivery slot
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // ---- Return waypoints: delivery slot is already the parking spot ----
-        // The delivery AGV stays at the delivery slot after dropping
+        // ---- Return waypoints: delivery AGV returns to packing station ----
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        // Stay here — this IS the parking spot
+        
+        if (agvId === deliveryAgvId) {
+          // Delivery AGV returns to packing station after delivery
+          appendWaypoint(returnWps, { mx: destMX, my: topPathMY });
+          appendWaypoint(returnWps, { mx: leftLaneMX, my: topPathMY });
+          appendWaypoint(returnWps, { mx: leftLaneMX, my: srcMY });
+          appendWaypoint(returnWps, { mx: srcMX, my: srcMY });
+        } else {
+          // Other AGVs stay at delivery slot
+          // Stay here — this IS the parking spot
+        }
 
         amrSt.sourceWaypoints = srcWps;
         amrSt.stationWaypoints = stWps;
         amrSt.returnWaypoints = returnWps;
-        amrSt.mx = srcWps[0].mx;
-        amrSt.my = srcWps[0].my;
-        amrSt.sourceWpIdx = 1;
-        amrSt.stationWpIdx = 1;
+        
+        // For delivery AGV that's already at packing station, skip to_source phase
+        if (agvId === deliveryAgvId && (amrSt.currentSegmentKind === "station-branch" || !amrSt.initialized)) {
+          amrSt.phase = "to_station"; // Skip to_source, go directly to station
+          amrSt.mx = srcMX;
+          amrSt.my = srcMY;
+          amrSt.sourceWpIdx = srcWps.length; // Mark source waypoints as complete
+          amrSt.stationWpIdx = 0; // Start station waypoints from beginning
+        } else {
+          amrSt.mx = srcWps.length > 0 ? srcWps[0].mx : curMX;
+          amrSt.my = srcWps.length > 0 ? srcWps[0].my : curMY;
+          amrSt.sourceWpIdx = 1;
+          amrSt.stationWpIdx = 1;
+        }
         amrSt.returnWpIdx = 1;
-        amrSt.currentSegmentKind = "delivery-branch"; // after delivery, AGV is at delivery branch
+        amrSt.currentSegmentKind = agvId === deliveryAgvId ? "station-branch" : "delivery-branch"; // delivery AGV returns to station, others stay at delivery
       }
     });
 
@@ -2112,7 +2219,7 @@ export function Warehouse2D({
         !!agvAnimState &&
         agvAnimState.initialized &&
         (agvAnimState.phase === "idle" || agvAnimState.phase === "done") &&
-        agvAnimState.currentSegmentKind === "delivery-branch" &&
+        agvAnimState.currentSegmentKind === "station-branch" &&
         (Math.abs(agvAnimState.mx) > 0.001 || Math.abs(agvAnimState.my) > 0.001);
 
       if (agvAnimState && (agvAnimState.phase !== "idle" && agvAnimState.phase !== "done" || keepDeliveryAgvAtCurrentSlot)) {
@@ -2135,6 +2242,9 @@ export function Warehouse2D({
       const isPicking = phase === "pickup";
       const isDropping = phase === "dropoff";
       const isStopped = agvAnimState?.stopped ?? false;
+      const isDeliveryRun =
+        agvAnimState?.order?.flowType === "station-to-delivery" ||
+        agvAnimState?.currentSegmentKind === "delivery-branch";
       const pulseScale = isPicking || isDropping ? 1 + 0.1 * Math.sin(Date.now() / 100) : 1;
       const drawW = amrW * pulseScale;
       const drawH = amrH2 * pulseScale;
@@ -2147,6 +2257,8 @@ export function Warehouse2D({
 
       ctx.fillStyle = isStopped
         ? "hsl(0, 70%, 45%)"
+        : isDeliveryRun
+          ? "hsl(188, 78%, 42%)"
         : isPicking
           ? "hsl(120, 70%, 45%)"
           : isDropping
@@ -2157,6 +2269,8 @@ export function Warehouse2D({
       ctx.fill();
       ctx.strokeStyle = isStopped
         ? "hsl(0, 80%, 60%)"
+        : isDeliveryRun
+          ? "hsl(188, 95%, 67%)"
         : isPicking
           ? "hsl(120, 80%, 60%)"
           : isDropping
@@ -2175,21 +2289,47 @@ export function Warehouse2D({
       ctx.fill();
 
       if (hasTrayNow) {
-        ctx.fillStyle = trayColor;
+        const agvItemIdx = agvAnimState?.order?.itemIndex ?? 0;
+        const badge = getItemBadgeStyle(agvItemIdx > 0 ? agvItemIdx : 1);
+        // Use accurate bin size matching the actual tray dimensions
+        const carryTrayW = slotW * 0.9; // Match rack tray size
+        const carryTrayH = slotD * 0.82; // Match rack tray height
+        const carryTrayX = -carryTrayW / 2;
+        const carryTrayY = -amrH2 / 2 - carryTrayH - 2;
+
+        ctx.fillStyle = isDeliveryRun ? "hsl(188, 88%, 58%)" : trayColor;
         ctx.beginPath();
-        ctx.roundRect(-slotW * 0.25, -amrH2 / 2 - slotD * 0.15 - 2, slotW * 0.5, slotD * 0.25, 2);
+        ctx.roundRect(carryTrayX, carryTrayY, carryTrayW, carryTrayH, 2);
         ctx.fill();
-        ctx.strokeStyle = "hsl(210, 60%, 60%)";
-        ctx.lineWidth = 0.5;
+        ctx.strokeStyle = isDeliveryRun ? "hsl(188, 95%, 76%)" : "hsl(210, 60%, 60%)";
+        ctx.lineWidth = 1;
         ctx.stroke();
-        // Draw item number on AGV tray
-        const agvItemIdx = agvAnimState?.order?.itemIndex;
+
+        // Top highlight for better depth/readability
+        ctx.strokeStyle = "hsla(0, 0%, 100%, 0.3)";
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.roundRect(carryTrayX + 1.5, carryTrayY + 1.5, carryTrayW - 3, Math.max(carryTrayH * 0.35, 3), 2);
+        ctx.stroke();
+
+        // Draw persistent item number badge on AGV tray
         if (agvItemIdx && agvItemIdx > 0) {
-          ctx.font = "bold 6px monospace";
-          ctx.fillStyle = "hsl(50, 100%, 70%)";
+          const numberBadgeW = 16;
+          const numberBadgeH = 10;
+          const numberBadgeX = -numberBadgeW / 2;
+          const numberBadgeY = carryTrayY + carryTrayH / 2 - numberBadgeH / 2;
+          ctx.fillStyle = badge.bg;
+          ctx.beginPath();
+          ctx.roundRect(numberBadgeX, numberBadgeY, numberBadgeW, numberBadgeH, 3);
+          ctx.fill();
+          ctx.strokeStyle = badge.border;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+          ctx.font = "bold 8px monospace";
+          ctx.fillStyle = badge.text;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`#${agvItemIdx}`, 0, -amrH2 / 2 - slotD * 0.15 - 2 + slotD * 0.125);
+          ctx.fillText(`${agvItemIdx}`, 0, numberBadgeY + numberBadgeH / 2);
         }
       }
 
@@ -2280,6 +2420,9 @@ export function Warehouse2D({
 
     ctx.restore();
     hitRegionsRef.current = hitRegions;
+    } catch (error) {
+      console.error("Error in drawCanvas:", error);
+    }
   }, [
     params,
     transform,
@@ -2437,14 +2580,28 @@ export function Warehouse2D({
 }
 
 function drawShuttle(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) {
-  ctx.fillStyle = color;
+  ctx.fillStyle = "hsla(205, 95%, 65%, 0.2)";
   ctx.beginPath();
-  ctx.roundRect(x - size / 2, y - size / 3, size, size * 0.66, 3);
+  ctx.ellipse(x, y, size * 0.8, size * 0.42, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "hsl(210, 20%, 50%)";
-  ctx.fillRect(x - 1.5, y - size / 2, 3, size);
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x - size / 2, y - size / 2.8, size, size * 0.72, 3);
+  ctx.fill();
+  ctx.strokeStyle = "hsl(200, 70%, 70%)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
 
-  ctx.fillStyle = "hsl(210, 25%, 65%)";
-  ctx.fillRect(x - size * 0.3, y - size / 3 - 2, size * 0.6, 3);
+  ctx.fillStyle = "hsl(210, 18%, 58%)";
+  ctx.fillRect(x - 2, y - size / 2, 4, size);
+
+  ctx.fillStyle = "hsl(210, 30%, 72%)";
+  ctx.fillRect(x - size * 0.32, y - size / 3 - 3, size * 0.64, 4);
+
+  ctx.fillStyle = "hsl(210, 30%, 18%)";
+  ctx.beginPath();
+  ctx.roundRect(x - size * 0.44, y + size * 0.08, size * 0.18, size * 0.18, 2);
+  ctx.roundRect(x + size * 0.26, y + size * 0.08, size * 0.18, size * 0.18, 2);
+  ctx.fill();
 }

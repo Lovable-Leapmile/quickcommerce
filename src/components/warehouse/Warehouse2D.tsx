@@ -27,15 +27,6 @@ const PACKING_STATIONS_COUNT = 3;
 const PACKING_SLOTS_PER_STATION = 9;
 const SHUTTLE_PICK_HOLD_S = 0.28;
 const SHUTTLE_DROP_HOLD_S = 0.32;
-const ITEM_BADGE_PALETTE = [
-  { bg: "hsl(350, 72%, 36%)", border: "hsl(350, 86%, 62%)", text: "hsl(0, 0%, 98%)" },
-  { bg: "hsl(206, 72%, 34%)", border: "hsl(206, 88%, 63%)", text: "hsl(0, 0%, 98%)" },
-  { bg: "hsl(132, 58%, 31%)", border: "hsl(132, 72%, 58%)", text: "hsl(0, 0%, 98%)" },
-  { bg: "hsl(36, 76%, 36%)", border: "hsl(36, 90%, 64%)", text: "hsl(0, 0%, 98%)" },
-  { bg: "hsl(276, 64%, 34%)", border: "hsl(276, 82%, 66%)", text: "hsl(0, 0%, 98%)" },
-  { bg: "hsl(186, 72%, 33%)", border: "hsl(186, 88%, 63%)", text: "hsl(0, 0%, 98%)" },
-];
-
 const SLOT_W_M = 0.4;
 const SLOT_D_M = 0.6;
 const AISLE_W_M = 0.5;
@@ -989,15 +980,30 @@ export function Warehouse2D({
       ctx.restore();
     };
 
+    const drawTrayNumber = (value: number, x: number, y: number, fontSize = 8, extraRotation = 0) => {
+      if (!value) return;
+      const totalAngle = normalizeAngle(rot + extraRotation);
+      const flip = (totalAngle > Math.PI / 2 && totalAngle < 3 * Math.PI / 2) ? Math.PI : 0;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(flip + extraRotation);
+      ctx.font = `bold ${fontSize}px monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(1, fontSize * 0.22);
+      ctx.strokeStyle = "hsla(225, 24%, 10%, 0.92)";
+      ctx.fillStyle = "hsl(0, 0%, 98%)";
+      ctx.strokeText(`${value}`, 0, 0);
+      ctx.fillText(`${value}`, 0, 0);
+      ctx.restore();
+    };
+
     // For AGV labels / tooltip (no extraRotation)
     const textFlip = (() => {
       const n = normalizeAngle(rot);
       return (n > Math.PI / 2 && n < 3 * Math.PI / 2) ? Math.PI : 0;
     })();
-    const getItemBadgeStyle = (itemNumber: number) => {
-      const idx = Math.max(0, (itemNumber || 1) - 1) % ITEM_BADGE_PALETTE.length;
-      return ITEM_BADGE_PALETTE[idx];
-    };
 
     const padding = 60;
 
@@ -1301,13 +1307,21 @@ export function Warehouse2D({
           ctx.beginPath();
           ctx.roundRect(cx + 1.5, cy + 1.5, hiW, hiH, 2);
           ctx.stroke();
-          // Delivery tray icon if ready
           if (isDeliveryReady) {
-            ctx.font = "bold 6px monospace";
-            ctx.fillStyle = "hsl(0, 0%, 100%)";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            drawReadableText("📦", cx + rotatedW / 2, cy + ch / 2);
+            const orderBinW = rotatedW * 0.72;
+            const orderBinH = ch * 0.58;
+            const orderBinX = cx + (rotatedW - orderBinW) / 2;
+            const orderBinY = cy + (ch - orderBinH) / 2;
+            ctx.fillStyle = trayColor;
+            ctx.beginPath();
+            ctx.roundRect(orderBinX, orderBinY, orderBinW, orderBinH, 2);
+            ctx.fill();
+            ctx.strokeStyle = "hsla(0, 0%, 100%, 0.36)";
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.roundRect(orderBinX + 1, orderBinY + 1, orderBinW - 2, Math.max(orderBinH * 0.34, 2), 2);
+            ctx.stroke();
           }
         } else {
           // Draw slot number or item number label
@@ -1315,11 +1329,7 @@ export function Warehouse2D({
           const packedItemNum = packedItemNumbersRef.current.get(`${s}-${c}`);
           ctx.font = "bold 6px monospace";
           if (isDropped && packedItemNum) {
-            // Show item number with distinct color when filled
-            ctx.fillStyle = "hsl(50, 100%, 70%)";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            drawReadableText(`${packedItemNum}`, cx + rotatedW / 2, cy + ch / 2);
+            drawTrayNumber(packedItemNum, cx + rotatedW / 2, cy + ch / 2, Math.max(7, Math.min(ch * 0.6, 10)));
           } else {
             ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
             ctx.textAlign = "center";
@@ -1542,20 +1552,7 @@ export function Warehouse2D({
           // Draw item number label if this tray is a source for an order item
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
           if (itemLabel && !isRemoved) {
-            const badge = getItemBadgeStyle(itemLabel);
-            ctx.fillStyle = badge.bg;
-            ctx.beginPath();
-            const badgeW = Math.max(18, Math.min(slotW - 4, 26));
-            ctx.roundRect(x + 2, y + 2, badgeW, 11, 3);
-            ctx.fill();
-            ctx.strokeStyle = badge.border;
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-            ctx.font = "bold 8px monospace";
-            ctx.fillStyle = badge.text;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            drawReadableText(`${itemLabel}`, x + 2 + badgeW / 2, y + 7.5);
+            drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 
           hitRegions.push({ x, y: y + 1, w: slotW, h: slotD - 2, type: "tray" });
@@ -1628,21 +1625,8 @@ export function Warehouse2D({
             ctx.beginPath();
             ctx.roundRect(shuttleX - slotW * 0.45, forkEndY - slotD * 0.22, slotW * 0.9, slotD * 0.44, 2);
             ctx.fill();
-            // Draw item number on shuttle tray
             if (aisleAnim!.itemIndex > 0) {
-              const badge = getItemBadgeStyle(aisleAnim!.itemIndex);
-              ctx.fillStyle = badge.bg;
-              ctx.beginPath();
-              ctx.roundRect(shuttleX - 8, forkEndY - 5, 16, 10, 3);
-              ctx.fill();
-              ctx.font = "bold 8px monospace";
-              ctx.strokeStyle = badge.border;
-              ctx.lineWidth = 0.8;
-              ctx.stroke();
-              ctx.fillStyle = badge.text;
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              drawReadableText(`${aisleAnim!.itemIndex}`, shuttleX, forkEndY);
+              drawTrayNumber(aisleAnim!.itemIndex, shuttleX, forkEndY, Math.max(8, Math.min(slotD * 0.44, 10)));
             }
           }
         }
@@ -2279,6 +2263,11 @@ export function Warehouse2D({
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
+      ctx.fillStyle = "hsla(0, 0%, 100%, 0.12)";
+      ctx.beginPath();
+      ctx.roundRect(-drawW * 0.3, -drawH * 0.18, drawW * 0.6, drawH * 0.18, 2);
+      ctx.fill();
+
       // Direction indicator triangle at front
       ctx.fillStyle = "hsl(0, 0%, 90%)";
       ctx.beginPath();
@@ -2290,46 +2279,40 @@ export function Warehouse2D({
 
       if (hasTrayNow) {
         const agvItemIdx = agvAnimState?.order?.itemIndex ?? 0;
-        const badge = getItemBadgeStyle(agvItemIdx > 0 ? agvItemIdx : 1);
-        // Use accurate bin size matching the actual tray dimensions
-        const carryTrayW = slotW * 0.9; // Match rack tray size
-        const carryTrayH = slotD * 0.82; // Match rack tray height
+        const carryTrayW = Math.min(slotW * 0.92, drawW * 0.9);
+        const carryTrayH = Math.min(slotD * 0.74, drawH * 0.56);
         const carryTrayX = -carryTrayW / 2;
-        const carryTrayY = -amrH2 / 2 - carryTrayH - 2;
+        const carryTrayY = -drawH * 0.58;
 
-        ctx.fillStyle = isDeliveryRun ? "hsl(188, 88%, 58%)" : trayColor;
+        ctx.fillStyle = "hsla(225, 28%, 8%, 0.34)";
+        ctx.beginPath();
+        ctx.ellipse(0, carryTrayY + carryTrayH + 0.9, carryTrayW * 0.34, Math.max(1.2, carryTrayH * 0.16), 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = trayColor;
         ctx.beginPath();
         ctx.roundRect(carryTrayX, carryTrayY, carryTrayW, carryTrayH, 2);
         ctx.fill();
-        ctx.strokeStyle = isDeliveryRun ? "hsl(188, 95%, 76%)" : "hsl(210, 60%, 60%)";
+        ctx.strokeStyle = "hsl(210, 60%, 60%)";
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        // Top highlight for better depth/readability
         ctx.strokeStyle = "hsla(0, 0%, 100%, 0.3)";
         ctx.lineWidth = 0.8;
         ctx.beginPath();
         ctx.roundRect(carryTrayX + 1.5, carryTrayY + 1.5, carryTrayW - 3, Math.max(carryTrayH * 0.35, 3), 2);
         ctx.stroke();
 
-        // Draw persistent item number badge on AGV tray
         if (agvItemIdx && agvItemIdx > 0) {
-          const numberBadgeW = 16;
-          const numberBadgeH = 10;
-          const numberBadgeX = -numberBadgeW / 2;
-          const numberBadgeY = carryTrayY + carryTrayH / 2 - numberBadgeH / 2;
-          ctx.fillStyle = badge.bg;
-          ctx.beginPath();
-          ctx.roundRect(numberBadgeX, numberBadgeY, numberBadgeW, numberBadgeH, 3);
-          ctx.fill();
-          ctx.strokeStyle = badge.border;
-          ctx.lineWidth = 0.8;
-          ctx.stroke();
-          ctx.font = "bold 8px monospace";
-          ctx.fillStyle = badge.text;
+          ctx.font = `bold ${Math.max(8, Math.min(carryTrayH * 0.72, 10))}px monospace`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`${agvItemIdx}`, 0, numberBadgeY + numberBadgeH / 2);
+          ctx.lineJoin = "round";
+          ctx.lineWidth = 1.4;
+          ctx.strokeStyle = "hsla(225, 24%, 10%, 0.92)";
+          ctx.fillStyle = "hsl(0, 0%, 98%)";
+          ctx.strokeText(`${agvItemIdx}`, 0, carryTrayY + carryTrayH / 2);
+          ctx.fillText(`${agvItemIdx}`, 0, carryTrayY + carryTrayH / 2);
         }
       }
 

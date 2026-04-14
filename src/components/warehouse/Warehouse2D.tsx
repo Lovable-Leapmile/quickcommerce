@@ -1662,6 +1662,49 @@ export function Warehouse2D({
 
         drawShuttle(ctx, shuttleX, shuttleCenterY, sSize, shuttleColor);
 
+        if (isActiveShuttle && aisleAnim!.hasTray && Math.abs(aisleAnim!.forkExtend) <= 0.01) {
+          const carryTrayW = slotW * 0.9;
+          const carryTrayH = slotD * 0.44;
+          const carryTrayX = shuttleX - carryTrayW / 2;
+          const carryTrayY = shuttleCenterY - sSize * 0.52 - carryTrayH / 2;
+
+          ctx.fillStyle = "hsla(225, 28%, 8%, 0.34)";
+          ctx.beginPath();
+          ctx.ellipse(
+            shuttleX,
+            carryTrayY + carryTrayH + 1,
+            carryTrayW * 0.34,
+            Math.max(1.2, carryTrayH * 0.16),
+            0,
+            0,
+            Math.PI * 2,
+          );
+          ctx.fill();
+
+          ctx.fillStyle = trayColor;
+          ctx.beginPath();
+          ctx.roundRect(carryTrayX, carryTrayY, carryTrayW, carryTrayH, 2);
+          ctx.fill();
+          ctx.strokeStyle = "hsl(210, 60%, 60%)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.strokeStyle = "hsla(0, 0%, 100%, 0.3)";
+          ctx.lineWidth = 0.8;
+          ctx.beginPath();
+          ctx.roundRect(carryTrayX + 1.5, carryTrayY + 1.5, carryTrayW - 3, Math.max(carryTrayH * 0.35, 3), 2);
+          ctx.stroke();
+
+          if (aisleAnim!.itemIndex > 0) {
+            drawTrayNumber(
+              aisleAnim!.itemIndex,
+              shuttleX,
+              carryTrayY + carryTrayH / 2,
+              Math.max(8, Math.min(carryTrayH * 0.72, 10)),
+            );
+          }
+        }
+
         hitRegions.push({
           x: shuttleX - sSize / 2,
           y: shuttleCenterY - sSize / 2,

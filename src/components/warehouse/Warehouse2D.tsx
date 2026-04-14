@@ -919,7 +919,7 @@ export function Warehouse2D({
           st.initialized = deliverySt?.initialized ?? false;
           st.mx = deliverySt?.mx ?? 0;
           st.my = deliverySt?.my ?? 0;
-          st.currentSegmentKind = "delivery-branch";
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "station-branch";
           amrAnimMapRef.current.set(delivAgvId, st);
           startAMRLoop();
           changed = true;
@@ -1289,7 +1289,7 @@ export function Warehouse2D({
         const isDeliveryReady = isCenter && deliveryReadyStationsRef.current.has(s);
         ctx.fillStyle = isCenter
           ? (isDeliveryReady ? "hsl(210, 80%, 65%)" : "hsl(210, 72%, 57%)")
-          : isDropped ? "hsl(220, 12%, 72%)" : "hsl(223, 24%, 20%)";
+          : "hsl(223, 24%, 20%)";
         ctx.beginPath();
         ctx.roundRect(cx, cy, rotatedW, ch, 3);
         ctx.fill();
@@ -1324,12 +1324,39 @@ export function Warehouse2D({
             ctx.stroke();
           }
         } else {
-          // Draw slot number or item number label
+          // Draw slot number or occupied tray with item number
           const slotNum = c < centerSlotIdx ? c + 1 : c;
           const packedItemNum = packedItemNumbersRef.current.get(`${s}-${c}`);
           ctx.font = "bold 6px monospace";
           if (isDropped && packedItemNum) {
-            drawTrayNumber(packedItemNum, cx + rotatedW / 2, cy + ch / 2, Math.max(7, Math.min(ch * 0.6, 10)));
+            const packedTrayW = rotatedW * 0.72;
+            const packedTrayH = ch * 0.58;
+            const packedTrayX = cx + (rotatedW - packedTrayW) / 2;
+            const packedTrayY = cy + (ch - packedTrayH) / 2;
+
+            ctx.fillStyle = trayColor;
+            ctx.beginPath();
+            ctx.roundRect(packedTrayX, packedTrayY, packedTrayW, packedTrayH, 2);
+            ctx.fill();
+            ctx.strokeStyle = "hsla(0, 0%, 100%, 0.32)";
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.roundRect(
+              packedTrayX + 1,
+              packedTrayY + 1,
+              packedTrayW - 2,
+              Math.max(packedTrayH * 0.34, 2),
+              2,
+            );
+            ctx.stroke();
+
+            drawTrayNumber(
+              packedItemNum,
+              packedTrayX + packedTrayW / 2,
+              packedTrayY + packedTrayH / 2,
+              Math.max(7, Math.min(packedTrayH * 0.72, 10)),
+            );
           } else {
             ctx.fillStyle = isDropped ? "hsl(220, 20%, 35%)" : "hsl(220, 15%, 45%)";
             ctx.textAlign = "center";
@@ -2100,8 +2127,13 @@ export function Warehouse2D({
         const srcWps: { mx: number; my: number }[] = [];
         const stationBranchMY = srcMY; // Define stationBranchMY in proper scope
         
-        if (agvId === deliveryAgvId && (amrSt.currentSegmentKind === "station-branch" || !amrSt.initialized)) {
-          // Delivery AGV starts at packing station, no need to move
+        const isDeliveryAgvAtSource =
+          agvId === deliveryAgvId &&
+          Math.abs(curMX - srcMX) < 0.01 &&
+          Math.abs(curMY - srcMY) < 0.01;
+
+        if (isDeliveryAgvAtSource) {
+          // Delivery AGV is already at the correct order-bin slot, so pick up immediately.
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         } else {
           // Other AGVs: current position to packing station
@@ -2114,7 +2146,9 @@ export function Warehouse2D({
             appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =
-              amrSt.currentSegmentKind === "left-vertical"
+              amrSt.currentSegmentKind === "station-branch"
+                ? { kind: "station-branch" }
+                : amrSt.currentSegmentKind === "left-vertical"
                 ? { kind: "left-vertical" }
                 : amrSt.currentSegmentKind === "horizontal"
                   ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
@@ -2161,7 +2195,7 @@ export function Warehouse2D({
         
         // For delivery AGV that's already at packing station, skip travel-to-source
         // but still perform the pickup before leaving for delivery.
-        if (agvId === deliveryAgvId && (amrSt.currentSegmentKind === "station-branch" || !amrSt.initialized)) {
+        if (isDeliveryAgvAtSource) {
           amrSt.phase = "pickup";
           amrSt.mx = srcMX;
           amrSt.my = srcMY;

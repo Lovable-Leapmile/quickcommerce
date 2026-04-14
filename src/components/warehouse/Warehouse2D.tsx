@@ -1576,9 +1576,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Draw item number label if this tray is a source for an order item
+          // Keep the item number visible on the tray while it is still the active tracked item.
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel && !isRemoved) {
+          if (itemLabel) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 
@@ -1696,9 +1696,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Draw item number label if this tray is a source for an order item
+          // Keep the item number visible on the tray while it is still the active tracked item.
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel && !isRemoved) {
+          if (itemLabel) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 

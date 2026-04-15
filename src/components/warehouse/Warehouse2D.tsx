@@ -161,6 +161,7 @@ export function Warehouse2D({
     targetPackingStationIdx: number;
     targetPackingSlotIdx: number;
     targetDeliverySlotIdx: number;
+    carriedItemIndex: number;
     currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch" | "delivery-branch";
   }
   const createDefaultAMRState = (): AMRAnimState => ({
@@ -188,6 +189,7 @@ export function Warehouse2D({
     targetPackingStationIdx: -1,
     targetPackingSlotIdx: -1,
     targetDeliverySlotIdx: -1,
+    carriedItemIndex: 0,
     currentSegmentKind: "right-vertical",
   });
   const amrAnimMapRef = useRef<Map<number, AMRAnimState>>(new Map());
@@ -740,14 +742,42 @@ export function Warehouse2D({
         } else if (st.phase === "pickup") {
           st.pickupTimer += delta;
           if (st.pickupTimer >= PICKUP_DURATION) {
+            let carriedItemIndex = st.carriedItemIndex || st.order?.itemIndex || 0;
+
+            if (st.order?.flowType === "rack-to-station") {
+              const rackRow = st.order.rackRow ?? 1;
+              const rackRack = st.order.rackRack ?? 1;
+              const rackDeep = st.order.rackDeep ?? 1;
+              const rackSlot = st.order.rackSlot ?? 1;
+              const { aisleIdx } = rowToAisleSide(rackRow);
+              const deepOffset = getDeepOffset({ row: rackRow, rack: rackRack, deep: rackDeep, slot: rackSlot });
+              const rackKey = `${aisleIdx}-${rackRack - 1}-${deepOffset}`;
+              const rackItemNumber = trayItemLabelsRef.current.get(rackKey);
+
+              carriedItemIndex = rackItemNumber ?? carriedItemIndex;
+              trayItemLabelsRef.current.delete(rackKey);
+              setPlacedTrays((prev) =>
+                prev.filter((tray) => !(tray.aisle === aisleIdx && tray.rack === rackRack - 1 && tray.deepOffset === deepOffset)),
+              );
+              setRemovedTrays((prev) => {
+                const next = new Set(prev);
+                next.add(rackKey);
+                return next;
+              });
+            }
+
             st.hasTray = true;
-            // Get item information from packing slot when picking up
-            if (st.order?.flowType === "station-to-delivery" && st.targetPackingStationIdx >= 0 && st.targetPackingSlotIdx >= 0) {
-              const key = `${st.targetPackingStationIdx}-${st.targetPackingSlotIdx}`;
-              const itemNumber = packedItemNumbersRef.current.get(key);
-              if (itemNumber && !st.order?.itemIndex) {
-                st.order = { ...st.order!, itemIndex: itemNumber };
-              }
+            if (st.order?.flowType === "station-to-delivery") {
+              const sourceStationIdx = Math.max((st.order.sourceStation ?? 1) - 1, 0);
+              const centerSlotIdx = Math.floor(PACKING_SLOTS_PER_STATION / 2);
+              const packedKey = `${sourceStationIdx}-${centerSlotIdx}`;
+              const packedItemNumber = packedItemNumbersRef.current.get(packedKey);
+              carriedItemIndex = packedItemNumber ?? carriedItemIndex;
+            }
+
+            st.carriedItemIndex = carriedItemIndex;
+            if (carriedItemIndex && st.order && st.order.itemIndex !== carriedItemIndex) {
+              st.order = { ...st.order, itemIndex: carriedItemIndex };
             }
             st.phase = "to_station";
           }
@@ -762,6 +792,7 @@ export function Warehouse2D({
         } else if (st.phase === "dropoff") {
           st.dropoffTimer += delta;
           if (st.dropoffTimer >= DROPOFF_DURATION) {
+            const droppedItemIndex = st.carriedItemIndex || st.order?.itemIndex || 0;
             st.hasTray = false;
             if (
               st.order?.flowType === "rack-to-station" &&
@@ -771,8 +802,8 @@ export function Warehouse2D({
               const stIdx = st.targetPackingStationIdx;
               const key = `${stIdx}-${st.targetPackingSlotIdx}`;
               // Store item number for this packing slot
-              if (st.order?.itemIndex) {
-                packedItemNumbersRef.current.set(key, st.order.itemIndex);
+              if (droppedItemIndex) {
+                packedItemNumbersRef.current.set(key, droppedItemIndex);
               }
               setFilledPackingSlots((prev) => {
                 const next = new Set(prev);
@@ -807,6 +838,7 @@ export function Warehouse2D({
               // Notify parent that delivery is complete
               onDeliveryComplete?.();
             }
+            st.carriedItemIndex = 0;
             // If there are more orders in queue, go directly to next source (no return to parking)
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;
@@ -2346,7 +2378,7 @@ export function Warehouse2D({
       ctx.fill();
 
       if (hasTrayNow) {
-        const agvItemIdx = agvAnimState?.order?.itemIndex ?? 0;
+        const agvItemIdx = agvAnimState?.carriedItemIndex || agvAnimState?.order?.itemIndex || 0;
         const carryTrayW = Math.min(slotW * 0.92, drawW * 0.9);
         const carryTrayH = Math.min(slotD * 0.74, drawH * 0.56);
         const carryTrayX = -carryTrayW / 2;

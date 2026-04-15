@@ -1875,6 +1875,47 @@ export function Warehouse2D({
       return best;
     };
 
+    // ====== Intelligent lane selection: evaluate congestion + distance ======
+    const countAgvsOnLane = (laneMX: number, excludeAgvId: number): number => {
+      let count = 0;
+      amrAnimMapRef.current.forEach((st, id) => {
+        if (id === excludeAgvId) return;
+        if (st.phase === "idle" || st.phase === "done") return;
+        // Check if AGV is near this vertical lane (within lane gap tolerance)
+        if (Math.abs(st.mx - laneMX) < LANE_GAP_M) {
+          count++;
+        }
+      });
+      return count;
+    };
+
+    // Pick the optimal vertical lane (left or right) based on distance + congestion
+    const pickOptimalLane = (
+      agvId: number,
+      fromMX: number,
+      fromMY: number,
+      targetMX: number,
+      targetMY: number,
+      lane: number,
+    ): "left" | "right" => {
+      const leftMX = laneX("left", lane);
+      const rightMX = laneX("right", lane);
+
+      // Distance cost: total detour via each lane
+      const distLeft = Math.abs(fromMX - leftMX) + Math.abs(leftMX - targetMX) + Math.abs(fromMY - targetMY);
+      const distRight = Math.abs(fromMX - rightMX) + Math.abs(rightMX - targetMX) + Math.abs(fromMY - targetMY);
+
+      // Congestion cost: penalize lanes with more AGVs
+      const CONGESTION_WEIGHT = 2.0; // meters penalty per AGV on lane
+      const congestionLeft = countAgvsOnLane(leftMX, agvId) * CONGESTION_WEIGHT;
+      const congestionRight = countAgvsOnLane(rightMX, agvId) * CONGESTION_WEIGHT;
+
+      const costLeft = distLeft + congestionLeft;
+      const costRight = distRight + congestionRight;
+
+      return costLeft <= costRight ? "left" : "right";
+    };
+
     // Build route strictly along the visible AMR lane lines.
     // Horizontal travel stays on the chosen lane line, and lane changes happen only via the left/right vertical lane lines.
     const buildRouteToPoint = (

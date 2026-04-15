@@ -2086,14 +2086,18 @@ export function Warehouse2D({
         const rackXPx = startX + rackRack * (slotW + rackGapPx) + slotW / 2;
 
         let deepSlotPx: number;
+        let pickupEdgePx: number; // rack face where AGV waits for handoff
         if (side === "top") {
           deepSlotPx = aisleTopPx + (deep - rackDeep) * slotD + slotD / 2;
+          pickupEdgePx = aisleTopPx + deep * slotD + slotD * 0.3; // just inside aisle top edge
         } else {
           deepSlotPx = aisleTopPx + deep * slotD + aisleH + (rackDeep - 1) * slotD + slotD / 2;
+          pickupEdgePx = aisleTopPx + deep * slotD + aisleH - slotD * 0.3; // just inside aisle bottom edge
         }
 
         const srcMX = toMX(rackXPx);
         const srcMY = toMY(deepSlotPx);
+        const pickupMY = toMY(pickupEdgePx); // AGV goes here (near target, at rack face)
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {

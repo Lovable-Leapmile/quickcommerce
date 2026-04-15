@@ -1701,15 +1701,17 @@ export function Warehouse2D({
 
       // Draw four shuttles per aisle
       for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
-        const isActiveShuttle = aisleIsAnimating && aisleAnim!.activeShuttleIdx === si;
+        // Find active anim for this specific shuttle
+        const shuttleAnim = aisleAnims.find(aa => aa.shuttleIdx === si)?.anim;
+        const isActiveShuttle = !!shuttleAnim;
         const idlePos = Math.floor((racks - 1) * ((si + 1) / (SHUTTLES_PER_AISLE + 1)));
-        const shuttleRackIdx = isActiveShuttle ? aisleAnim!.shuttleRackPos : idlePos;
+        const shuttleRackIdx = isActiveShuttle ? shuttleAnim!.shuttleRackPos : idlePos;
         const shuttleX = startX + shuttleRackIdx * (slotW + rackGapPx) + slotW / 2;
 
         // Draw fork extension for active shuttle
-        if (isActiveShuttle && Math.abs(aisleAnim!.forkExtend) > 0.01) {
-          const forkLength = Math.abs(aisleAnim!.forkExtend) * slotD;
-          const forkDir = aisleAnim!.forkExtend < 0 ? -1 : 1;
+        if (isActiveShuttle && Math.abs(shuttleAnim!.forkExtend) > 0.01) {
+          const forkLength = Math.abs(shuttleAnim!.forkExtend) * slotD;
+          const forkDir = shuttleAnim!.forkExtend < 0 ? -1 : 1;
           const forkStartY = shuttleCenterY;
           const forkEndY = forkStartY + forkDir * forkLength;
 
@@ -1724,20 +1726,20 @@ export function Warehouse2D({
           ctx.roundRect(shuttleX - 4, forkEndY - 4, 8, 8, 2);
           ctx.fill();
 
-          if (aisleAnim!.hasTray) {
+          if (shuttleAnim!.hasTray) {
             ctx.fillStyle = trayColor;
             ctx.beginPath();
             ctx.roundRect(shuttleX - slotW * 0.45, forkEndY - slotD * 0.22, slotW * 0.9, slotD * 0.44, 2);
             ctx.fill();
-            if (aisleAnim!.itemIndex > 0) {
-              drawTrayNumber(aisleAnim!.itemIndex, shuttleX, forkEndY, Math.max(8, Math.min(slotD * 0.44, 10)));
+            if (shuttleAnim!.itemIndex > 0) {
+              drawTrayNumber(shuttleAnim!.itemIndex, shuttleX, forkEndY, Math.max(8, Math.min(slotD * 0.44, 10)));
             }
           }
         }
 
         drawShuttle(ctx, shuttleX, shuttleCenterY, sSize, shuttleColor);
 
-        if (isActiveShuttle && aisleAnim!.hasTray && Math.abs(aisleAnim!.forkExtend) <= 0.01) {
+        if (isActiveShuttle && shuttleAnim!.hasTray && Math.abs(shuttleAnim!.forkExtend) <= 0.01) {
           const carryTrayW = slotW * 0.9;
           const carryTrayH = slotD * 0.44;
           const carryTrayX = shuttleX - carryTrayW / 2;
@@ -1770,9 +1772,9 @@ export function Warehouse2D({
           ctx.roundRect(carryTrayX + 1.5, carryTrayY + 1.5, carryTrayW - 3, Math.max(carryTrayH * 0.35, 3), 2);
           ctx.stroke();
 
-          if (aisleAnim!.itemIndex > 0) {
+          if (shuttleAnim!.itemIndex > 0) {
             drawTrayNumber(
-              aisleAnim!.itemIndex,
+              shuttleAnim!.itemIndex,
               shuttleX,
               carryTrayY + carryTrayH / 2,
               Math.max(8, Math.min(carryTrayH * 0.72, 10)),

@@ -2121,26 +2121,15 @@ export function Warehouse2D({
 
         const rackRow = order.rackRow ?? 1;
         const rackRack = (order.rackRack ?? 1) - 1;
-        const rackDeep = order.rackDeep ?? 1;
-        const { aisleIdx, side } = rowToAisleSide(rackRow);
+        const { aisleIdx } = rowToAisleSide(rackRow);
         const aisleTopPx = startY + aisleYOffset(aisleIdx, numAisles, aisleGroupH) * ppm;
         const rackXPx = startX + rackRack * (slotW + rackGapPx) + slotW / 2;
 
-        let deepSlotPx: number;
-        let pickupEdgePx: number; // rack face where AGV waits for handoff
-        if (side === "top") {
-          deepSlotPx = aisleTopPx + (deep - rackDeep) * slotD + slotD / 2;
-          // AGV stays in aisle lane — 30% into the aisle from top edge
-          pickupEdgePx = aisleTopPx + deep * slotD + aisleH * 0.3;
-        } else {
-          deepSlotPx = aisleTopPx + deep * slotD + aisleH + (rackDeep - 1) * slotD + slotD / 2;
-          // AGV stays in aisle lane — 70% into the aisle from top edge
-          pickupEdgePx = aisleTopPx + deep * slotD + aisleH * 0.7;
-        }
-
         const srcMX = toMX(rackXPx);
-        const srcMY = toMY(deepSlotPx);
-        const pickupMY = toMY(pickupEdgePx); // AGV goes here (near target, at rack face)
+        const pickupLanePx = aisleTopPx + aisleH / 2;
+        // The shuttle target slot is the AGV source logically, but the AGV must stay on the aisle lane only.
+        // So we align the pickup at the target rack column while locking Y to the aisle center path.
+        const pickupMY = toMY(pickupLanePx);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {

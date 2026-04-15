@@ -2186,7 +2186,6 @@ export function Warehouse2D({
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
         const stWps: { mx: number; my: number }[] = [];
-        appendWaypoint(stWps, { mx: srcMX, my: srcMY });
         appendWaypoint(stWps, { mx: srcMX, my: rackPathMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: rackPathMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });

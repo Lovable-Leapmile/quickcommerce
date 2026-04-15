@@ -237,10 +237,12 @@ export function Warehouse2D({
   const aisleGroupH = deep * SLOT_D_M + AISLE_W_M + deep * SLOT_D_M;
   const contentH = totalAisleSpan(numAisles, aisleGroupH);
 
-  // Two idle positions per aisle: shuttle 0 at 1/4, shuttle 1 at 3/4
+  // Four idle positions per aisle: evenly distributed
+  const SHUTTLES_PER_AISLE = 4;
   const shuttleIdlePos = useCallback(
     (idx: number) => {
-      return idx === 0 ? Math.floor((racks - 1) * 0.25) : Math.floor((racks - 1) * 0.75);
+      // Positions at 1/5, 2/5, 3/5, 4/5 of rack span
+      return Math.floor((racks - 1) * ((idx + 1) / (SHUTTLES_PER_AISLE + 1)));
     },
     [racks],
   );
@@ -253,12 +255,14 @@ export function Warehouse2D({
       const srcRack = src.rack - 1;
       const sourceAisle = rowToAisleSide(src.row).aisleIdx;
       const traySourceKey = `${sourceAisle}-${src.rack - 1}-${getDeepOffset(src)}`;
-      const idle0 = shuttleIdlePos(0);
-      const idle1 = shuttleIdlePos(1);
-      const dist0 = Math.abs(srcRack - idle0);
-      const dist1 = Math.abs(srcRack - idle1);
-      const activeIdx = dist0 <= dist1 ? 0 : 1;
-      const startPos = activeIdx === 0 ? idle0 : idle1;
+      // Find nearest shuttle among all 4
+      let activeIdx = 0;
+      let minDist = Infinity;
+      for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
+        const d = Math.abs(srcRack - shuttleIdlePos(si));
+        if (d < minDist) { minDist = d; activeIdx = si; }
+      }
+      const startPos = shuttleIdlePos(activeIdx);
       const resolvedItemIndex = order.itemIndex ?? trayItemLabelsRef.current.get(traySourceKey) ?? 0;
       return {
         phase: "move_to_source",
@@ -1660,10 +1664,10 @@ export function Warehouse2D({
       const shuttleCenterY = aisleTopY + aisleH / 2;
       const sSize = Math.min(aisleH * 1.35, slotW * 1.4);
 
-      // Draw two shuttles per aisle
-      for (let si = 0; si < 2; si++) {
+      // Draw four shuttles per aisle
+      for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
         const isActiveShuttle = aisleIsAnimating && aisleAnim!.activeShuttleIdx === si;
-        const idlePos = si === 0 ? Math.floor((racks - 1) * 0.25) : Math.floor((racks - 1) * 0.75);
+        const idlePos = Math.floor((racks - 1) * ((si + 1) / (SHUTTLES_PER_AISLE + 1)));
         const shuttleRackIdx = isActiveShuttle ? aisleAnim!.shuttleRackPos : idlePos;
         const shuttleX = startX + shuttleRackIdx * (slotW + rackGapPx) + slotW / 2;
 

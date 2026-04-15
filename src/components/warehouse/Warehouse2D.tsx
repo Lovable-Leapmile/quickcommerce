@@ -2164,14 +2164,18 @@ export function Warehouse2D({
         }
         const rackPathMY = laneY(nearestRackPathMY, agvLaneLocal);
 
-        // Build source waypoints - if coming from station, route via left lane
+        // Intelligent lane selection: pick optimal lane based on distance + congestion
+        const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, rackPathMY, agvLaneLocal);
+        const optimalSourceLaneMX = laneX(optimalToSource, agvLaneLocal);
+
+        // Build source waypoints using optimal lane
         let srcWps: { mx: number; my: number }[];
         if (amrSt.currentSegmentKind === "station-branch") {
-          // From station: go to left lane, then to nearest horizontal path, then to rack
+          // From station: go to optimal lane, then to nearest horizontal path, then to rack
           srcWps = [];
           appendWaypoint(srcWps, { mx: curMX, my: curMY });
-          appendWaypoint(srcWps, { mx: leftLaneMX, my: curMY });
-          appendWaypoint(srcWps, { mx: leftLaneMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: curMY });
+          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: rackPathMY });
           appendWaypoint(srcWps, { mx: srcMX, my: rackPathMY });
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         } else {
@@ -2179,26 +2183,34 @@ export function Warehouse2D({
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
+        // Intelligent lane selection for rack → station path
+        const optimalToStation = pickOptimalLane(agvId, srcMX, srcMY, destMX, stationBranchMY, agvLaneLocal);
+        const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
+
         const stWps: { mx: number; my: number }[] = [];
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
         appendWaypoint(stWps, { mx: srcMX, my: rackPathMY });
-        appendWaypoint(stWps, { mx: leftLaneMX, my: rackPathMY });
-        appendWaypoint(stWps, { mx: leftLaneMX, my: stationBranchMY });
+        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: rackPathMY });
+        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // Return: via AMR paths strictly — left lane → nearest horizontal path → right lane → parking
+        // Return: intelligent lane selection for return path
+        const optimalReturn = pickOptimalLane(agvId, destMX, destMY, idlePlacement.mx, idlePlacement.my, agvLaneLocal);
+        const optimalReturnLaneMX = laneX(optimalReturn, agvLaneLocal);
+        const oppositeReturnLaneMX = laneX(optimalReturn === "left" ? "right" : "left", agvLaneLocal);
+
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        // Branch back to left lane
-        appendWaypoint(returnWps, { mx: leftLaneMX, my: stationBranchMY });
-        // Find nearest horizontal AMR path to travel to right side
+        // Branch back to optimal lane
+        appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: stationBranchMY });
+        // Find nearest horizontal AMR path to travel to parking side
         const nearestReturnPathMY = findNearestHorizontalPath(stationBranchMY, agvLaneLocal);
-        appendWaypoint(returnWps, { mx: leftLaneMX, my: nearestReturnPathMY });
-        // Horizontal on AMR path to right vertical lane
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: nearestReturnPathMY });
-        // Vertical on right lane to parking row
-        appendWaypoint(returnWps, { mx: rightLaneMX, my: idlePlacement.my });
+        appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: nearestReturnPathMY });
+        // Horizontal on AMR path to opposite lane if needed for parking
+        appendWaypoint(returnWps, { mx: oppositeReturnLaneMX, my: nearestReturnPathMY });
+        // Vertical to parking row
+        appendWaypoint(returnWps, { mx: oppositeReturnLaneMX, my: idlePlacement.my });
         // Horizontal into parking spot
         appendWaypoint(returnWps, { mx: idlePlacement.mx, my: idlePlacement.my });
 

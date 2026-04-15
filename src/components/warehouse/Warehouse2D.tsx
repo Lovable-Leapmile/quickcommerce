@@ -123,8 +123,8 @@ export function Warehouse2D({
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const clickStart = useRef({ x: 0, y: 0 });
-  // Map of aisle index → AnimState for simultaneous shuttle animations
-  const shuttleAnimMapRef = useRef<Map<number, AnimState>>(new Map());
+  // Map of "aisleIdx-shuttleIdx" → AnimState for simultaneous multi-shuttle animations
+  const shuttleAnimMapRef = useRef<Map<string, AnimState>>(new Map());
   const [removedTrays, setRemovedTrays] = useState<Set<string>>(new Set());
   const [placedTrays, setPlacedTrays] = useState<{ aisle: number; rack: number; deepOffset: number }[]>([]);
   // Map source tray key → item number for initial labeling on racks
@@ -324,11 +324,39 @@ export function Warehouse2D({
       byAisle.set(aisleIdx, list);
     }
 
+    // Distribute orders across 4 shuttles per aisle by rack zone
     shuttleAnimMapRef.current.clear();
     byAisle.forEach((orders, aisleIdx) => {
-      const st = createShuttleAnim(orders[0]);
-      st.orderQueue = orders.slice(1);
-      shuttleAnimMapRef.current.set(aisleIdx, st);
+      // Divide racks into zones: shuttle 0 → racks 0..zoneSize-1, etc.
+      const zoneSize = Math.floor(racks / SHUTTLES_PER_AISLE);
+      const remainder = racks % SHUTTLES_PER_AISLE;
+
+      const shuttleBuckets: MovementOrder[][] = Array.from({ length: SHUTTLES_PER_AISLE }, () => []);
+
+      for (const order of orders) {
+        const srcRack = order.source.rack - 1;
+        // Determine which shuttle zone this rack belongs to
+        let shuttleIdx = 0;
+        let cumulative = 0;
+        for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
+          const thisZone = zoneSize + (si < remainder ? 1 : 0);
+          if (srcRack < cumulative + thisZone) {
+            shuttleIdx = si;
+            break;
+          }
+          cumulative += thisZone;
+        }
+        shuttleBuckets[shuttleIdx].push(order);
+      }
+
+      // Create an AnimState for each shuttle that has orders
+      for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
+        if (shuttleBuckets[si].length === 0) continue;
+        const st = createShuttleAnim(shuttleBuckets[si][0]);
+        st.activeShuttleIdx = si;
+        st.orderQueue = shuttleBuckets[si].slice(1);
+        shuttleAnimMapRef.current.set(`${aisleIdx}-${si}`, st);
+      }
     });
 
     lastTimeRef.current = performance.now();
@@ -1659,22 +1687,31 @@ export function Warehouse2D({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const aisleAnim = shuttleAnimMapRef.current.get(a);
-      const aisleIsAnimating = aisleAnim ? aisleAnim.phase !== "idle" && aisleAnim.phase !== "done" : false;
+      // Collect all active shuttle anims for this aisle
+      const aisleAnims: { shuttleIdx: number; anim: AnimState }[] = [];
+      for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
+        const anim = shuttleAnimMapRef.current.get(`${a}-${si}`);
+        if (anim && anim.phase !== "idle" && anim.phase !== "done") {
+          aisleAnims.push({ shuttleIdx: si, anim });
+        }
+      }
+      const aisleIsAnimating = aisleAnims.length > 0;
       const shuttleCenterY = aisleTopY + aisleH / 2;
       const sSize = Math.min(aisleH * 1.35, slotW * 1.4);
 
       // Draw four shuttles per aisle
       for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
-        const isActiveShuttle = aisleIsAnimating && aisleAnim!.activeShuttleIdx === si;
+        // Find active anim for this specific shuttle
+        const shuttleAnim = aisleAnims.find(aa => aa.shuttleIdx === si)?.anim;
+        const isActiveShuttle = !!shuttleAnim;
         const idlePos = Math.floor((racks - 1) * ((si + 1) / (SHUTTLES_PER_AISLE + 1)));
-        const shuttleRackIdx = isActiveShuttle ? aisleAnim!.shuttleRackPos : idlePos;
+        const shuttleRackIdx = isActiveShuttle ? shuttleAnim!.shuttleRackPos : idlePos;
         const shuttleX = startX + shuttleRackIdx * (slotW + rackGapPx) + slotW / 2;
 
         // Draw fork extension for active shuttle
-        if (isActiveShuttle && Math.abs(aisleAnim!.forkExtend) > 0.01) {
-          const forkLength = Math.abs(aisleAnim!.forkExtend) * slotD;
-          const forkDir = aisleAnim!.forkExtend < 0 ? -1 : 1;
+        if (isActiveShuttle && Math.abs(shuttleAnim!.forkExtend) > 0.01) {
+          const forkLength = Math.abs(shuttleAnim!.forkExtend) * slotD;
+          const forkDir = shuttleAnim!.forkExtend < 0 ? -1 : 1;
           const forkStartY = shuttleCenterY;
           const forkEndY = forkStartY + forkDir * forkLength;
 
@@ -1689,20 +1726,20 @@ export function Warehouse2D({
           ctx.roundRect(shuttleX - 4, forkEndY - 4, 8, 8, 2);
           ctx.fill();
 
-          if (aisleAnim!.hasTray) {
+          if (shuttleAnim!.hasTray) {
             ctx.fillStyle = trayColor;
             ctx.beginPath();
             ctx.roundRect(shuttleX - slotW * 0.45, forkEndY - slotD * 0.22, slotW * 0.9, slotD * 0.44, 2);
             ctx.fill();
-            if (aisleAnim!.itemIndex > 0) {
-              drawTrayNumber(aisleAnim!.itemIndex, shuttleX, forkEndY, Math.max(8, Math.min(slotD * 0.44, 10)));
+            if (shuttleAnim!.itemIndex > 0) {
+              drawTrayNumber(shuttleAnim!.itemIndex, shuttleX, forkEndY, Math.max(8, Math.min(slotD * 0.44, 10)));
             }
           }
         }
 
         drawShuttle(ctx, shuttleX, shuttleCenterY, sSize, shuttleColor);
 
-        if (isActiveShuttle && aisleAnim!.hasTray && Math.abs(aisleAnim!.forkExtend) <= 0.01) {
+        if (isActiveShuttle && shuttleAnim!.hasTray && Math.abs(shuttleAnim!.forkExtend) <= 0.01) {
           const carryTrayW = slotW * 0.9;
           const carryTrayH = slotD * 0.44;
           const carryTrayX = shuttleX - carryTrayW / 2;
@@ -1735,9 +1772,9 @@ export function Warehouse2D({
           ctx.roundRect(carryTrayX + 1.5, carryTrayY + 1.5, carryTrayW - 3, Math.max(carryTrayH * 0.35, 3), 2);
           ctx.stroke();
 
-          if (aisleAnim!.itemIndex > 0) {
+          if (shuttleAnim!.itemIndex > 0) {
             drawTrayNumber(
-              aisleAnim!.itemIndex,
+              shuttleAnim!.itemIndex,
               shuttleX,
               carryTrayY + carryTrayH / 2,
               Math.max(8, Math.min(carryTrayH * 0.72, 10)),
@@ -2093,10 +2130,12 @@ export function Warehouse2D({
         let pickupEdgePx: number; // rack face where AGV waits for handoff
         if (side === "top") {
           deepSlotPx = aisleTopPx + (deep - rackDeep) * slotD + slotD / 2;
-          pickupEdgePx = aisleTopPx + deep * slotD + slotD * 0.3; // just inside aisle top edge
+          // AGV stays in aisle lane — 30% into the aisle from top edge
+          pickupEdgePx = aisleTopPx + deep * slotD + aisleH * 0.3;
         } else {
           deepSlotPx = aisleTopPx + deep * slotD + aisleH + (rackDeep - 1) * slotD + slotD / 2;
-          pickupEdgePx = aisleTopPx + deep * slotD + aisleH - slotD * 0.3; // just inside aisle bottom edge
+          // AGV stays in aisle lane — 70% into the aisle from top edge
+          pickupEdgePx = aisleTopPx + deep * slotD + aisleH * 0.7;
         }
 
         const srcMX = toMX(rackXPx);

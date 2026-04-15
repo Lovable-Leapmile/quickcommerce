@@ -2177,10 +2177,8 @@ export function Warehouse2D({
           appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: curMY });
           appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: rackPathMY });
           appendWaypoint(srcWps, { mx: srcMX, my: rackPathMY });
-          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         } else {
           srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
-          appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
         // Intelligent lane selection for rack → station path
@@ -2188,7 +2186,6 @@ export function Warehouse2D({
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
         const stWps: { mx: number; my: number }[] = [];
-        appendWaypoint(stWps, { mx: srcMX, my: srcMY });
         appendWaypoint(stWps, { mx: srcMX, my: rackPathMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: rackPathMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });

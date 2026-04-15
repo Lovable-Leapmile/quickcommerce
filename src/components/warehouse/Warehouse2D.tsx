@@ -2257,6 +2257,10 @@ export function Warehouse2D({
         const leftLaneMX = laneX("left", agvLaneLocal);
         const topPathMY = deliveryBranchPathMY;
 
+        // Intelligent lane selection for delivery flow
+        const optimalDeliveryLane = pickOptimalLane(agvId, srcMX, srcMY, destMX, topPathMY, agvLaneLocal);
+        const optimalDeliveryLaneMX = laneX(optimalDeliveryLane, agvLaneLocal);
+
         // ---- Source waypoints: delivery AGV is already at packing station ----
         const srcWps: { mx: number; my: number }[] = [];
         const stationBranchMY = srcMY; // Define stationBranchMY in proper scope
@@ -2273,11 +2277,15 @@ export function Warehouse2D({
           // Other AGVs: current position to packing station
           appendWaypoint(srcWps, { mx: curMX, my: curMY });
           
+          // Pick optimal lane for reaching the packing station
+          const optimalSrcLane = pickOptimalLane(agvId, curMX, curMY, srcMX, srcMY, agvLaneLocal);
+          const optimalSrcLaneMX = laneX(optimalSrcLane, agvLaneLocal);
+
           if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
             // From delivery slot: go vertically down to top AMR path via delivery branch
             appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
-            // Go horizontally on top path to left vertical lane
-            appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
+            // Go horizontally on top path to optimal vertical lane
+            appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =
               amrSt.currentSegmentKind === "station-branch"
@@ -2290,19 +2298,19 @@ export function Warehouse2D({
             const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
             strictRoute.forEach((point) => appendWaypoint(srcWps, point));
           }
-          // Go vertically on left lane to station branch Y
-          appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
+          // Go vertically on optimal lane to station branch Y
+          appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: stationBranchMY });
           // Go horizontally on station branch to packing station
           appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
-        // ---- Station waypoints: station → left lane → top path → delivery branch → delivery slot ----
+        // ---- Station waypoints: station → optimal lane → top path → delivery branch → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
         appendWaypoint(stWps, { mx: srcMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: leftLaneMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: leftLaneMX, my: topPathMY });
+        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: stationBranchMY });
+        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: topPathMY });
         // Go horizontally on top path to delivery branch X
         appendWaypoint(stWps, { mx: destMX, my: topPathMY });
         // Go vertically up on delivery branch to delivery slot
@@ -2313,10 +2321,13 @@ export function Warehouse2D({
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
         
         if (agvId === deliveryAgvId) {
+          // Intelligent lane selection for return to packing station
+          const optimalReturnLane = pickOptimalLane(agvId, destMX, destMY, srcMX, srcMY, agvLaneLocal);
+          const optimalReturnLaneMX = laneX(optimalReturnLane, agvLaneLocal);
           // Delivery AGV returns to packing station after delivery
           appendWaypoint(returnWps, { mx: destMX, my: topPathMY });
-          appendWaypoint(returnWps, { mx: leftLaneMX, my: topPathMY });
-          appendWaypoint(returnWps, { mx: leftLaneMX, my: srcMY });
+          appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: topPathMY });
+          appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: srcMY });
           appendWaypoint(returnWps, { mx: srcMX, my: srcMY });
         } else {
           // Other AGVs stay at delivery slot

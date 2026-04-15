@@ -127,8 +127,6 @@ export function Warehouse2D({
   const shuttleAnimMapRef = useRef<Map<string, AnimState>>(new Map());
   const [removedTrays, setRemovedTrays] = useState<Set<string>>(new Set());
   const [placedTrays, setPlacedTrays] = useState<{ aisle: number; rack: number; deepOffset: number }[]>([]);
-  const placedTrayKeysRef = useRef<Set<string>>(new Set());
-  const claimedPickupKeysRef = useRef<Map<string, number>>(new Map());
   // Map source tray key → item number for initial labeling on racks
   const trayItemLabelsRef = useRef<Map<string, number>>(new Map());
   const rafRef = useRef<number>(0);
@@ -137,7 +135,7 @@ export function Warehouse2D({
   const gridInfoRef = useRef<{ ppm: number; siteX: number; siteY: number }>({ ppm: 1, siteX: 0, siteY: 0 });
 
   // AMR animation state — one per AGV for concurrent movement
-  type AMRPhase = "idle" | "wait_for_handoff" | "to_source" | "pickup" | "to_station" | "dropoff" | "return_to_idle" | "done";
+  type AMRPhase = "idle" | "to_source" | "pickup" | "to_station" | "dropoff" | "return_to_idle" | "done";
   interface AMRAnimState {
     phase: AMRPhase;
     mx: number;
@@ -163,7 +161,6 @@ export function Warehouse2D({
     targetPackingStationIdx: number;
     targetPackingSlotIdx: number;
     targetDeliverySlotIdx: number;
-    targetPickupTrayKey: string | null;
     carriedItemIndex: number;
     currentSegmentKind: "left-vertical" | "right-vertical" | "horizontal" | "station-branch" | "delivery-branch";
   }
@@ -192,7 +189,6 @@ export function Warehouse2D({
     targetPackingStationIdx: -1,
     targetPackingSlotIdx: -1,
     targetDeliverySlotIdx: -1,
-    targetPickupTrayKey: null,
     carriedItemIndex: 0,
     currentSegmentKind: "right-vertical",
   });
@@ -251,19 +247,6 @@ export function Warehouse2D({
     [racks],
   );
 
-  const getRackPickupTrayKey = (order: AMROrder | null): string | null => {
-    if (!order || order.flowType !== "rack-to-station") return null;
-
-    const rackRow = order.rackRow ?? 1;
-    const rackRack = order.rackRack ?? 1;
-    const rackDeep = order.rackDeep ?? 1;
-    const rackSlot = order.rackSlot ?? 1;
-    const { aisleIdx } = rowToAisleSide(rackRow);
-    const deepOffset = getDeepOffset({ row: rackRow, rack: rackRack, deep: rackDeep, slot: rackSlot });
-
-    return `${aisleIdx}-${rackRack - 1}-${deepOffset}`;
-  };
-
   // Helper to create AnimState for a single MovementOrder
   const createShuttleAnim = useCallback(
     (order: MovementOrder): AnimState => {
@@ -318,7 +301,6 @@ export function Warehouse2D({
       shuttleAnimMapRef.current.clear();
       setRemovedTrays(new Set());
       setPlacedTrays([]);
-      placedTrayKeysRef.current.clear();
       return;
     }
 
@@ -463,9 +445,7 @@ export function Warehouse2D({
             if (Math.abs(diff) < 0.02) {
               st.forkExtend = st.destDeepOffset;
               st.hasTray = false;
-              const placedTrayKey = `${st.destAisle}-${st.destRack}-${st.destDeepOffset}`;
-              trayItemLabelsRef.current.set(placedTrayKey, st.itemIndex);
-              placedTrayKeysRef.current.add(placedTrayKey);
+              trayItemLabelsRef.current.set(`${st.destAisle}-${st.destRack}-${st.destDeepOffset}`, st.itemIndex);
               setPlacedTrays((prev) => [
                 ...prev,
                 {
@@ -535,33 +515,19 @@ export function Warehouse2D({
   useEffect(() => {
     if (amrOrders.length === 0) {
       reservedPackingSlotsRef.current.clear();
-      claimedPickupKeysRef.current.clear();
       return;
     }
 
     // Group orders by agvId — first order starts immediately, rest queue
     const ordersByAgv = new Map<number, AMROrder[]>();
-    const acceptedOrders: AMROrder[] = [];
-    const seenPickupKeys = new Set<string>();
     for (const order of amrOrders) {
-      const pickupKey = getRackPickupTrayKey(order);
-      if (pickupKey) {
-        const claimedBy = claimedPickupKeysRef.current.get(pickupKey);
-        if ((claimedBy != null && claimedBy !== order.agvId) || seenPickupKeys.has(pickupKey)) {
-          continue;
-        }
-        claimedPickupKeysRef.current.set(pickupKey, order.agvId);
-        seenPickupKeys.add(pickupKey);
-      }
-
       const list = ordersByAgv.get(order.agvId) ?? [];
       list.push(order);
       ordersByAgv.set(order.agvId, list);
-      acceptedOrders.push(order);
     }
 
     // Count expected items per packing station for this batch
-    for (const order of acceptedOrders) {
+    for (const order of amrOrders) {
       if (order.flowType === "rack-to-station" && order.destStation) {
         const stIdx = Math.min(Math.max((order.destStation) - 1, 0), PACKING_STATIONS_COUNT - 1);
         const existing = stationItemCountRef.current.get(stIdx);
@@ -576,14 +542,12 @@ export function Warehouse2D({
     ordersByAgv.forEach((agvOrderList, agvId) => {
       const existing = amrAnimMapRef.current.get(agvId);
       const st = createDefaultAMRState();
-      const firstOrder = agvOrderList[0];
-      st.phase = firstOrder.flowType === "rack-to-station" ? "wait_for_handoff" : "to_source";
+      st.phase = "to_source";
       st.initialized = existing?.initialized ?? false;
       st.mx = existing?.initialized ? existing.mx : 0;
       st.my = existing?.initialized ? existing.my : 0;
-      st.order = firstOrder;
+      st.order = agvOrderList[0];
       st.orderQueue = agvOrderList.slice(1); // remaining orders queued
-      st.targetPickupTrayKey = getRackPickupTrayKey(firstOrder);
       amrAnimMapRef.current.set(agvId, st);
     });
 
@@ -802,17 +766,6 @@ export function Warehouse2D({
         if (st.phase === "idle" || st.phase === "done") return;
         anyActive = true;
 
-        if (st.phase === "wait_for_handoff") {
-          const handoffReady = st.targetPickupTrayKey ? placedTrayKeysRef.current.has(st.targetPickupTrayKey) : true;
-          st.stopped = !handoffReady;
-          if (handoffReady) {
-            st.stopped = false;
-            st.stoppedTimer = 0;
-            st.phase = "to_source";
-          }
-          return;
-        }
-
         if (st.phase === "to_source" && st.sourceWaypoints.length === 0) return;
 
         if (st.phase === "to_source") {
@@ -834,13 +787,11 @@ export function Warehouse2D({
               const rackSlot = st.order.rackSlot ?? 1;
               const { aisleIdx } = rowToAisleSide(rackRow);
               const deepOffset = getDeepOffset({ row: rackRow, rack: rackRack, deep: rackDeep, slot: rackSlot });
-              const rackKey = st.targetPickupTrayKey ?? `${aisleIdx}-${rackRack - 1}-${deepOffset}`;
+              const rackKey = `${aisleIdx}-${rackRack - 1}-${deepOffset}`;
               const rackItemNumber = trayItemLabelsRef.current.get(rackKey);
 
               carriedItemIndex = rackItemNumber ?? carriedItemIndex;
               trayItemLabelsRef.current.delete(rackKey);
-              placedTrayKeysRef.current.delete(rackKey);
-              claimedPickupKeysRef.current.delete(rackKey);
               setPlacedTrays((prev) =>
                 prev.filter((tray) => !(tray.aisle === aisleIdx && tray.rack === rackRack - 1 && tray.deepOffset === deepOffset)),
               );
@@ -939,14 +890,10 @@ export function Warehouse2D({
               st.dropoffTimer = 0;
               st.targetPackingStationIdx = -1;
               st.targetPackingSlotIdx = -1;
-              st.targetDeliverySlotIdx = -1;
-              st.targetPickupTrayKey = getRackPickupTrayKey(nextOrder);
-              st.phase = nextOrder.flowType === "rack-to-station" ? "wait_for_handoff" : "to_source";
             } else {
               // No more orders — return to parking or mark done
               st.phase = st.returnWaypoints.length > 0 ? "return_to_idle" : "done";
               st.returnWpIdx = 1;
-              st.targetPickupTrayKey = null;
               if (st.phase === "done") {
                 onAMRComplete();
               }
@@ -970,12 +917,8 @@ export function Warehouse2D({
               st.dropoffTimer = 0;
               st.targetPackingStationIdx = -1;
               st.targetPackingSlotIdx = -1;
-              st.targetDeliverySlotIdx = -1;
-              st.targetPickupTrayKey = getRackPickupTrayKey(nextOrder);
-              st.phase = nextOrder.flowType === "rack-to-station" ? "wait_for_handoff" : "to_source";
             } else {
               st.phase = "done";
-              st.targetPickupTrayKey = null;
               onAMRComplete();
             }
           }
@@ -1744,27 +1687,6 @@ export function Warehouse2D({
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Handoff connectors from the perimeter AMR lanes into the shuttle aisle center line.
-      ctx.strokeStyle = pathColor;
-      ctx.lineWidth = LANE_LINE_W_PX;
-      const handoffY = aisleTopY + aisleH / 2;
-      ctx.beginPath();
-      ctx.moveTo(pathCenterLeft - laneOffsetPx, handoffY);
-      ctx.lineTo(startX, handoffY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(pathCenterLeft + laneOffsetPx, handoffY);
-      ctx.lineTo(startX, handoffY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(startX + layoutW, handoffY);
-      ctx.lineTo(pathCenterRight - laneOffsetPx, handoffY);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(startX + layoutW, handoffY);
-      ctx.lineTo(pathCenterRight + laneOffsetPx, handoffY);
-      ctx.stroke();
-
       // Collect all active shuttle anims for this aisle
       const aisleAnims: { shuttleIdx: number; anim: AnimState }[] = [];
       for (let si = 0; si < SHUTTLES_PER_AISLE; si++) {
@@ -2194,7 +2116,7 @@ export function Warehouse2D({
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
       } else if (order.flowType === "rack-to-station") {
-        // ====== Shuttle handoff lane → packing station ======
+        // ====== OLD FLOW: rack slot → packing station ======
         const agvLaneLocal = getAgvLane(agvId);
 
         const rackRow = order.rackRow ?? 1;
@@ -2205,10 +2127,9 @@ export function Warehouse2D({
 
         const srcMX = toMX(rackXPx);
         const pickupLanePx = aisleTopPx + aisleH / 2;
-        // The shuttle target slot is the logical source, but AGVs stay on the visible aisle handoff lane only.
+        // The shuttle target slot is the AGV source logically, but the AGV must stay on the aisle lane only.
+        // So we align the pickup at the target rack column while locking Y to the aisle center path.
         const pickupMY = toMY(pickupLanePx);
-        const pickupTrayKey = getRackPickupTrayKey(order);
-        amrSt.targetPickupTrayKey = pickupTrayKey;
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {
@@ -2268,8 +2189,8 @@ export function Warehouse2D({
           curSegment = idlePlacement.segment;
         }
 
-        // Intelligent lane selection: pick optimal lane based on distance + congestion,
-        // then travel only on the visible perimeter + handoff lane network.
+        // Use pickupMY (rack face) instead of aisle center for AGV pickup point
+        // Intelligent lane selection: pick optimal lane based on distance + congestion
         const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, pickupMY, agvLaneLocal);
         const optimalSourceLaneMX = laneX(optimalToSource, agvLaneLocal);
 
@@ -2332,7 +2253,6 @@ export function Warehouse2D({
         const agvLaneLocal = getAgvLane(agvId);
         amrSt.targetPackingStationIdx = -1;
         amrSt.targetPackingSlotIdx = -1;
-        amrSt.targetPickupTrayKey = null;
 
         // Source: packing station center slot
         const srcStationIdx = (order.sourceStation || 1) - 1;

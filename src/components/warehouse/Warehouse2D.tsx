@@ -1916,6 +1916,20 @@ export function Warehouse2D({
       return best;
     };
 
+    const getRackCenterMY = (rackRow: number, rackDeep: number): number => {
+      const { aisleIdx, side } = rowToAisleSide(rackRow);
+      const aisleTopPx = startY + aisleYOffset(aisleIdx, numAisles, aisleGroupH) * ppm + deep * slotD;
+      const safeDeep = Math.min(Math.max(rackDeep, 1), deep);
+
+      if (side === "top") {
+        const rackCenterPx = aisleTopPx - (safeDeep - 0.5) * slotD;
+        return toMY(rackCenterPx);
+      }
+
+      const rackCenterPx = aisleTopPx + aisleH + (safeDeep - 0.5) * slotD;
+      return toMY(rackCenterPx);
+    };
+
     // ====== Intelligent lane selection: evaluate congestion + distance ======
     const countAgvsOnLane = (laneMX: number, excludeAgvId: number): number => {
       let count = 0;
@@ -2116,20 +2130,19 @@ export function Warehouse2D({
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
       } else if (order.flowType === "rack-to-station") {
-        // ====== OLD FLOW: rack slot → packing station ======
+        // ====== Shuttle target slot → AGV lane handoff → packing station ======
         const agvLaneLocal = getAgvLane(agvId);
 
         const rackRow = order.rackRow ?? 1;
         const rackRack = (order.rackRack ?? 1) - 1;
-        const { aisleIdx } = rowToAisleSide(rackRow);
-        const aisleTopPx = startY + aisleYOffset(aisleIdx, numAisles, aisleGroupH) * ppm;
+        const rackDeep = order.rackDeep ?? 1;
         const rackXPx = startX + rackRack * (slotW + rackGapPx) + slotW / 2;
 
         const srcMX = toMX(rackXPx);
-        const pickupLanePx = aisleTopPx + aisleH / 2;
-        // The shuttle target slot is the AGV source logically, but the AGV must stay on the aisle lane only.
-        // So we align the pickup at the target rack column while locking Y to the aisle center path.
-        const pickupMY = toMY(pickupLanePx);
+        const rackTargetMY = getRackCenterMY(rackRow, rackDeep);
+        // AGVs must never enter the storage aisle. They pick from the shuttle handoff
+        // at the target slot column, snapped to the nearest grey AMR lane only.
+        const pickupPathMY = findNearestHorizontalPath(rackTargetMY, agvLaneLocal);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {
@@ -2189,30 +2202,29 @@ export function Warehouse2D({
           curSegment = idlePlacement.segment;
         }
 
-        // Use pickupMY (rack face) instead of aisle center for AGV pickup point
         // Intelligent lane selection: pick optimal lane based on distance + congestion
-        const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, pickupMY, agvLaneLocal);
+        const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, pickupPathMY, agvLaneLocal);
         const optimalSourceLaneMX = laneX(optimalToSource, agvLaneLocal);
 
-        // Build source waypoints using optimal lane — AGV goes to rack face (pickupMY)
+        // Build source waypoints using optimal lane — AGV stays on grey lane only.
         let srcWps: { mx: number; my: number }[];
         if (amrSt.currentSegmentKind === "station-branch") {
           srcWps = [];
           appendWaypoint(srcWps, { mx: curMX, my: curMY });
           appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: curMY });
-          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: pickupMY });
-          appendWaypoint(srcWps, { mx: srcMX, my: pickupMY });
+          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: pickupPathMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: pickupPathMY });
         } else {
-          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, pickupMY, agvLaneLocal);
+          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, pickupPathMY, agvLaneLocal);
         }
 
         // Intelligent lane selection for rack → station path
-        const optimalToStation = pickOptimalLane(agvId, srcMX, pickupMY, destMX, stationBranchMY, agvLaneLocal);
+        const optimalToStation = pickOptimalLane(agvId, srcMX, pickupPathMY, destMX, stationBranchMY, agvLaneLocal);
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
         const stWps: { mx: number; my: number }[] = [];
-        appendWaypoint(stWps, { mx: srcMX, my: pickupMY });
-        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: pickupMY });
+        appendWaypoint(stWps, { mx: srcMX, my: pickupPathMY });
+        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: pickupPathMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });

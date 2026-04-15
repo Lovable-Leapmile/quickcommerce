@@ -251,12 +251,15 @@ export function Warehouse2D({
       const src = order.source;
       const dst = order.destination;
       const srcRack = src.rack - 1;
+      const sourceAisle = rowToAisleSide(src.row).aisleIdx;
+      const traySourceKey = `${sourceAisle}-${src.rack - 1}-${getDeepOffset(src)}`;
       const idle0 = shuttleIdlePos(0);
       const idle1 = shuttleIdlePos(1);
       const dist0 = Math.abs(srcRack - idle0);
       const dist1 = Math.abs(srcRack - idle1);
       const activeIdx = dist0 <= dist1 ? 0 : 1;
       const startPos = activeIdx === 0 ? idle0 : idle1;
+      const resolvedItemIndex = order.itemIndex ?? trayItemLabelsRef.current.get(traySourceKey) ?? 0;
       return {
         phase: "move_to_source",
         shuttleRackPos: startPos,
@@ -265,13 +268,13 @@ export function Warehouse2D({
         sourceDeepOffset: getDeepOffset(src),
         destRack: dst.rack - 1,
         destDeepOffset: getDeepOffset(dst),
-        sourceAisle: rowToAisleSide(src.row).aisleIdx,
+        sourceAisle: sourceAisle,
         destAisle: rowToAisleSide(dst.row).aisleIdx,
         hasTray: false,
-        traySourceKey: `${rowToAisleSide(src.row).aisleIdx}-${src.rack - 1}-${getDeepOffset(src)}`,
+        traySourceKey,
         activeShuttleIdx: activeIdx,
         orderQueue: [],
-        itemIndex: order.itemIndex ?? 0,
+        itemIndex: resolvedItemIndex,
         phaseTimer: 0,
       };
     },
@@ -365,6 +368,7 @@ export function Warehouse2D({
             const diff = st.sourceDeepOffset - st.forkExtend;
             if (Math.abs(diff) < 0.02) {
               st.forkExtend = st.sourceDeepOffset;
+              st.itemIndex = st.itemIndex || trayItemLabelsRef.current.get(st.traySourceKey) || 0;
               st.hasTray = true;
               setRemovedTrays((prev) => new Set(prev).add(st.traySourceKey));
               // Remove item label from the source rack so it only shows on the moving tray
@@ -449,7 +453,7 @@ export function Warehouse2D({
                 st.sourceAisle = rowToAisleSide(src.row).aisleIdx;
                 st.destAisle = rowToAisleSide(dst.row).aisleIdx;
                 st.traySourceKey = `${st.sourceAisle}-${st.sourceRack}-${st.sourceDeepOffset}`;
-                st.itemIndex = next.itemIndex ?? 0;
+                st.itemIndex = next.itemIndex ?? trayItemLabelsRef.current.get(st.traySourceKey) ?? 0;
                 st.phaseTimer = 0;
                 st.phase = "move_to_source";
               } else {
@@ -1610,9 +1614,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Draw item number label if this tray is a source for an order item (hidden once picked up)
+          // Keep the label visible on the exact tray surface, including highlighted placed trays.
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel && !isRemoved) {
+          if (itemLabel && (!isRemoved || isPlaced)) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 
@@ -1773,9 +1777,9 @@ export function Warehouse2D({
           ctx.lineWidth = 1;
           ctx.stroke();
 
-          // Draw item number label if this tray is a source for an order item (hidden once picked up)
+          // Keep the label visible on the exact tray surface, including highlighted placed trays.
           const itemLabel = trayItemLabelsRef.current.get(trayKey);
-          if (itemLabel && !isRemoved) {
+          if (itemLabel && (!isRemoved || isPlaced)) {
             drawTrayNumber(itemLabel, x + slotW / 2, y + slotD * 0.5, Math.max(8, Math.min(slotD * 0.42, 11)));
           }
 

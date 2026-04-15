@@ -2086,14 +2086,18 @@ export function Warehouse2D({
         const rackXPx = startX + rackRack * (slotW + rackGapPx) + slotW / 2;
 
         let deepSlotPx: number;
+        let pickupEdgePx: number; // rack face where AGV waits for handoff
         if (side === "top") {
           deepSlotPx = aisleTopPx + (deep - rackDeep) * slotD + slotD / 2;
+          pickupEdgePx = aisleTopPx + deep * slotD + slotD * 0.3; // just inside aisle top edge
         } else {
           deepSlotPx = aisleTopPx + deep * slotD + aisleH + (rackDeep - 1) * slotD + slotD / 2;
+          pickupEdgePx = aisleTopPx + deep * slotD + aisleH - slotD * 0.3; // just inside aisle bottom edge
         }
 
         const srcMX = toMX(rackXPx);
         const srcMY = toMY(deepSlotPx);
+        const pickupMY = toMY(pickupEdgePx); // AGV goes here (near target, at rack face)
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {
@@ -2153,41 +2157,30 @@ export function Warehouse2D({
           curSegment = idlePlacement.segment;
         }
 
-        let nearestRackPathMY = horizontalPathsM[0];
-        let nearestRackDist = Infinity;
-        for (const py of horizontalPathsM) {
-          const d = Math.abs(srcMY - py);
-          if (d < nearestRackDist) {
-            nearestRackDist = d;
-            nearestRackPathMY = py;
-          }
-        }
-        const rackPathMY = laneY(nearestRackPathMY, agvLaneLocal);
-
+        // Use pickupMY (rack face) instead of aisle center for AGV pickup point
         // Intelligent lane selection: pick optimal lane based on distance + congestion
-        const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, rackPathMY, agvLaneLocal);
+        const optimalToSource = pickOptimalLane(agvId, curMX, curMY, srcMX, pickupMY, agvLaneLocal);
         const optimalSourceLaneMX = laneX(optimalToSource, agvLaneLocal);
 
-        // Build source waypoints using optimal lane
+        // Build source waypoints using optimal lane — AGV goes to rack face (pickupMY)
         let srcWps: { mx: number; my: number }[];
         if (amrSt.currentSegmentKind === "station-branch") {
-          // From station: go to optimal lane, then to nearest horizontal path, then to rack
           srcWps = [];
           appendWaypoint(srcWps, { mx: curMX, my: curMY });
           appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: curMY });
-          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: rackPathMY });
-          appendWaypoint(srcWps, { mx: srcMX, my: rackPathMY });
+          appendWaypoint(srcWps, { mx: optimalSourceLaneMX, my: pickupMY });
+          appendWaypoint(srcWps, { mx: srcMX, my: pickupMY });
         } else {
-          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, rackPathMY, agvLaneLocal);
+          srcWps = buildRouteToPoint(curMX, curMY, curSegment, srcMX, pickupMY, agvLaneLocal);
         }
 
         // Intelligent lane selection for rack → station path
-        const optimalToStation = pickOptimalLane(agvId, srcMX, srcMY, destMX, stationBranchMY, agvLaneLocal);
+        const optimalToStation = pickOptimalLane(agvId, srcMX, pickupMY, destMX, stationBranchMY, agvLaneLocal);
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
         const stWps: { mx: number; my: number }[] = [];
-        appendWaypoint(stWps, { mx: srcMX, my: rackPathMY });
-        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: rackPathMY });
+        appendWaypoint(stWps, { mx: srcMX, my: pickupMY });
+        appendWaypoint(stWps, { mx: optimalStationLaneMX, my: pickupMY });
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });

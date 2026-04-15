@@ -123,8 +123,8 @@ export function Warehouse2D({
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
   const clickStart = useRef({ x: 0, y: 0 });
-  // Map of aisle index → AnimState for simultaneous shuttle animations
-  const shuttleAnimMapRef = useRef<Map<number, AnimState>>(new Map());
+  // Map of "aisleIdx-shuttleIdx" → AnimState for simultaneous multi-shuttle animations
+  const shuttleAnimMapRef = useRef<Map<string, AnimState>>(new Map());
   const [removedTrays, setRemovedTrays] = useState<Set<string>>(new Set());
   const [placedTrays, setPlacedTrays] = useState<{ aisle: number; rack: number; deepOffset: number }[]>([]);
   // Map source tray key → item number for initial labeling on racks

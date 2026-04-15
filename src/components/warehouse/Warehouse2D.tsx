@@ -1916,18 +1916,10 @@ export function Warehouse2D({
       return best;
     };
 
-    const getRackCenterMY = (rackRow: number, rackDeep: number): number => {
-      const { aisleIdx, side } = rowToAisleSide(rackRow);
+    const getAislePickupLaneMY = (rackRow: number): number => {
+      const { aisleIdx } = rowToAisleSide(rackRow);
       const aisleTopPx = startY + aisleYOffset(aisleIdx, numAisles, aisleGroupH) * ppm + deep * slotD;
-      const safeDeep = Math.min(Math.max(rackDeep, 1), deep);
-
-      if (side === "top") {
-        const rackCenterPx = aisleTopPx - (safeDeep - 0.5) * slotD;
-        return toMY(rackCenterPx);
-      }
-
-      const rackCenterPx = aisleTopPx + aisleH + (safeDeep - 0.5) * slotD;
-      return toMY(rackCenterPx);
+      return toMY(aisleTopPx + aisleH / 2);
     };
 
     // ====== Intelligent lane selection: evaluate congestion + distance ======
@@ -2139,10 +2131,9 @@ export function Warehouse2D({
         const rackXPx = startX + rackRack * (slotW + rackGapPx) + slotW / 2;
 
         const srcMX = toMX(rackXPx);
-        const rackTargetMY = getRackCenterMY(rackRow, rackDeep);
-        // AGVs must never enter the storage aisle. They pick from the shuttle handoff
-        // at the target slot column, snapped to the nearest grey AMR lane only.
-        const pickupPathMY = findNearestHorizontalPath(rackTargetMY, agvLaneLocal);
+        // AGVs pick from the shuttle handoff at the destination rack column,
+        // but they stay strictly on the grey aisle lane center and never enter rack cells.
+        const pickupPathMY = getAislePickupLaneMY(rackRow);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {

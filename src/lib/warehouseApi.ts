@@ -1,4 +1,4 @@
-const WAREHOUSE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store`;
+const WAREHOUSE_API_BASE = import.meta.env.VITE_WAREHOUSE_API_BASE || "/api/warehouse";
 
 type WarehouseEndpoint = "agv" | "orders" | "orders_agv" | "orders_shuttle" | "stores";
 
@@ -7,14 +7,22 @@ interface WarehouseApiOptions {
   id?: number | string;
 }
 
+const endpointPathMap: Record<WarehouseEndpoint, string> = {
+  agv: "/agv",
+  orders: "/orders",
+  orders_agv: "/orders/agv",
+  orders_shuttle: "/orders/shuttle",
+  stores: "/store",
+};
+
 export function buildWarehouseApiUrl(options: WarehouseApiOptions = {}) {
-  const url = new URL(WAREHOUSE_PROXY_URL);
+  const path = options.endpoint
+    ? endpointPathMap[options.endpoint]
+    : `/store/${options.id ?? 1}`;
 
-  if (options.endpoint) {
-    url.searchParams.set("endpoint", options.endpoint);
-  }
+  const url = new URL(`${WAREHOUSE_API_BASE}${path}`, window.location.origin);
 
-  if (options.id != null) {
+  if (options.endpoint === "stores" && options.id != null) {
     url.searchParams.set("id", String(options.id));
   }
 

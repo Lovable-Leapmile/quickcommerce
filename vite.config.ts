@@ -8,6 +8,13 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    proxy: {
+      "/api/warehouse": {
+        target: "http://sudarshan.leapmile.com:8000",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/warehouse/, ""),
+      },
+    },
     hmr: {
       overlay: false,
     },

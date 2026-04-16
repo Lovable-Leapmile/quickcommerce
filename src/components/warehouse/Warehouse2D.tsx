@@ -2586,8 +2586,8 @@ export function Warehouse2D({
       const amrX = startX + amrMX * ppm;
       const amrY = startY + amrMY * ppm;
 
-      const amrW = 10;
-      const amrH2 = 10;
+      const amrW = 7;
+      const amrH2 = 7;
 
       const isPicking = phase === "pickup";
       const isDropping = phase === "dropoff";

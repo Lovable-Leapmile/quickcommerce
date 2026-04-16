@@ -748,13 +748,13 @@ export function Warehouse2D({
           if (canSwitchLane && shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
             const blocker = positions.find((p) => p.id === blockerId);
             if (isHorizontalMove) {
-              // Try shifting to inner/outer lane — pick the one opposite to blocker
+              // Only switch to valid lane Y positions (Lane A or B on the same horizontal path)
               const moveDir = Math.sign(target.mx - st.mx) || 1;
-              // Probe further ahead to ensure the lane is clear past the blocker
               const passDist = blocker ? Math.abs(blocker.mx - st.mx) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
               const probeMX = st.mx + moveDir * Math.min(Math.abs(target.mx - st.mx), passDist);
-              const candidates = [st.my - LANE_GAP_M, st.my + LANE_GAP_M]
-                .filter((y) => Math.abs(y - st.my) > 0.01)
+              // Find valid lane Y positions that are within LANE_GAP_M of current Y (the other lane on same path)
+              const candidates = validLaneYsRef.current
+                .filter((y) => Math.abs(y - st.my) > 0.05 && Math.abs(y - st.my) <= LANE_GAP_M + 0.1)
                 .sort((a, b) => {
                   if (!blocker) return 0;
                   return Math.abs(b - blocker.my) - Math.abs(a - blocker.my);

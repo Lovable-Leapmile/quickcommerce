@@ -614,7 +614,7 @@ export function Warehouse2D({
         let blockerId = -1;
 
         for (const other of positions) {
-          if (other.id === agvId) continue;
+          if (other.id === agvId || !other.active) continue;
           const odx = other.mx - mx;
           const ody = other.my - my;
           const eucDist = Math.sqrt(odx * odx + ody * ody);
@@ -651,11 +651,8 @@ export function Warehouse2D({
                   // Dot product of directions: negative means head-on
                   const dotProduct = ndx * otherNdx + ndy * otherNdy;
                   if (dotProduct < -0.5) {
-                    // Head-on: both stop; deterministically let higher ID AGV switch lane.
-                    if (agvId > other.id) {
-                      shouldSwitch = true;
-                      shouldYield = true;
-                    }
+                    // Head-on: both stop, and one AGV (higher ID) changes to the free adjacent lane.
+                    if (agvId > other.id) shouldSwitch = true;
                     continue;
                   }
                 }
@@ -721,21 +718,6 @@ export function Warehouse2D({
           st.stopped = true;
           st.stoppedTimer += dt;
 
-          // HEAD-ON YIELD: back up by reversing waypoints to previous waypoint
-          if (shouldYield && st.stoppedTimer > BRANCH_YIELD_WAIT) {
-            // Insert a waypoint to back up to the previous waypoint position
-            const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
-            if (prevWp) {
-              // Back up to previous waypoint, then re-approach after blocker passes
-              const backupWps = [{ mx: prevWp.mx, my: prevWp.my }];
-              // Insert backup waypoints before current target
-              waypoints.splice(wpIdx, 0, ...backupWps);
-              st.stopped = false;
-              st.stoppedTimer = 0;
-            }
-            return { arrived: false, newIdx: wpIdx };
-          }
-
           // LANE SWITCH: deterministic perpendicular lane shift for congestion release.
           const canSwitchLane =
             st.currentSegmentKind === "horizontal" ||
@@ -746,36 +728,51 @@ export function Warehouse2D({
             const blocker = positions.find((p) => p.id === blockerId);
             const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
             if (isHorizontalMove) {
-              // Move to adjacent horizontal lane line (± lane gap)
-              const switchDir = blocker && blocker.my >= st.my ? -1 : 1;
-              const switchedY = st.my + switchDir * LANE_GAP_M;
-              if (
-                Math.abs(switchedY - st.my) > 0.01 &&
-                isLanePointFree(agvId, st.mx, switchedY) &&
-                isLanePointFree(agvId, target.mx, switchedY)
-              ) {
-                // Full detour: shift lane, travel parallel, then rejoin target line.
+              // Try both adjacent horizontal lanes and pick a free one.
+              const candidates = [st.my - LANE_GAP_M, st.my + LANE_GAP_M]
+                .filter((y) => Math.abs(y - st.my) > 0.01)
+                .filter((y) => isLanePointFree(agvId, st.mx, y) && isLanePointFree(agvId, target.mx, y));
+
+              if (candidates.length > 0) {
+                const switchedY =
+                  blocker
+                    ? candidates.sort((a, b) => Math.abs(b - blocker.my) - Math.abs(a - blocker.my))[0]
+                    : candidates[0];
+                // Full detour: shift lane, run parallel, then rejoin.
                 waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY }, { mx: target.mx, my: switchedY });
                 st.stopped = false;
                 st.stoppedTimer = 0;
                 return { arrived: false, newIdx: wpIdx };
               }
             } else {
-              // Move to adjacent vertical lane line (± lane gap)
-              const switchDir = blocker && blocker.mx >= st.mx ? -1 : 1;
-              const switchedX = st.mx + switchDir * LANE_GAP_M;
-              if (
-                Math.abs(switchedX - st.mx) > 0.01 &&
-                isLanePointFree(agvId, switchedX, st.my) &&
-                isLanePointFree(agvId, switchedX, target.my)
-              ) {
-                // Full detour: shift lane, travel parallel, then rejoin target line.
+              // Try both adjacent vertical lanes and pick a free one.
+              const candidates = [st.mx - LANE_GAP_M, st.mx + LANE_GAP_M]
+                .filter((x) => Math.abs(x - st.mx) > 0.01)
+                .filter((x) => isLanePointFree(agvId, x, st.my) && isLanePointFree(agvId, x, target.my));
+
+              if (candidates.length > 0) {
+                const switchedX =
+                  blocker
+                    ? candidates.sort((a, b) => Math.abs(b - blocker.mx) - Math.abs(a - blocker.mx))[0]
+                    : candidates[0];
+                // Full detour: shift lane, run parallel, then rejoin.
                 waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my }, { mx: switchedX, my: target.my });
                 st.stopped = false;
                 st.stoppedTimer = 0;
                 return { arrived: false, newIdx: wpIdx };
               }
             }
+          }
+
+          // Fallback yield only when switching didn't happen.
+          if (shouldYield && st.stoppedTimer > BRANCH_YIELD_WAIT) {
+            const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
+            if (prevWp) {
+              waypoints.splice(wpIdx, 0, { mx: prevWp.mx, my: prevWp.my });
+              st.stopped = false;
+              st.stoppedTimer = 0;
+            }
+            return { arrived: false, newIdx: wpIdx };
           }
 
           if (st.stoppedTimer > LANE_SWITCH_WAIT * 3) {

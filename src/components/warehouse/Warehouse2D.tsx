@@ -2530,7 +2530,7 @@ export function Warehouse2D({
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
-        // ---- Station waypoints: station → left vertical lane → top path → delivery branch → delivery slot ----
+        // ---- Station waypoints: station → left lane → top path → connector → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
         const leftLaneMXLocal = laneX("left", agvLaneLocal);
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
@@ -2538,21 +2538,23 @@ export function Warehouse2D({
         appendWaypoint(stWps, { mx: leftLaneMXLocal, my: srcMY });
         // Go vertically on left lane to top path
         appendWaypoint(stWps, { mx: leftLaneMXLocal, my: topPathMY });
-        // Go horizontally on top path to delivery branch X
-        appendWaypoint(stWps, { mx: destMX, my: topPathMY });
-        // Go vertically up on delivery branch to delivery slot
+        // Go horizontally on top path to connector branch X (NOT directly to delivery slot)
+        appendWaypoint(stWps, { mx: deliveryParkingMX, my: topPathMY });
+        // Go vertically on connector branch into delivery area
+        appendWaypoint(stWps, { mx: deliveryParkingMX, my: destMY });
+        // Go horizontally within delivery area to exact delivery slot
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // ---- Return waypoints: delivery AGV returns to packing station ----
+        // ---- Return waypoints: delivery AGV returns via connector ----
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
         
         if (agvId === deliveryAgvId) {
-          // Delivery AGV returns via AMR path to connector branch, then down to parking
-          appendWaypoint(returnWps, { mx: destMX, my: topPathMY });
-          // Travel on top path to connector branch X
+          // Go horizontally within delivery area to connector X
+          appendWaypoint(returnWps, { mx: deliveryParkingMX, my: destMY });
+          // Go down connector branch to top AMR path
           appendWaypoint(returnWps, { mx: deliveryParkingMX, my: topPathMY });
-          // Go down connector branch to parking
+          // Go on top path to connector parking
           appendWaypoint(returnWps, { mx: deliveryParkingMX, my: deliveryParkingMY });
         } else {
           // Other AGVs stay at delivery slot

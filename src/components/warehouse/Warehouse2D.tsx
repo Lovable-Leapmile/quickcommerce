@@ -2132,16 +2132,17 @@ export function Warehouse2D({
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
       } else if (order.flowType === "rack-to-station") {
-        // ====== Shuttle target slot → AGV grey-lane handoff → packing station ======
+        // ====== Shuttle target slot → AGV travels to aisle center to pick tray → packing station ======
         const agvLaneLocal = getAgvLane(agvId);
 
         const rackRow = order.rackRow ?? 1;
         const rackRack = (order.rackRack ?? 1) - 1;
         const rackDeep = order.rackDeep ?? 1;
         const pickupMX = getAgvPickupLaneMX(rackRack, agvLaneLocal);
-        // AGVs never enter the shuttle aisle or rack footprint.
-        // Pickup happens only on the nearest valid grey AMR path lane.
+        // The nearest horizontal AMR path to approach the aisle
         const pickupPathMY = getAgvPickupLaneMY(rackRow, agvLaneLocal);
+        // The actual aisle center where the shuttle drops the tray — AGV goes here to pick up
+        const aisleCenterMY = getAisleCenterMY(rackRow);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {
@@ -2155,7 +2156,7 @@ export function Warehouse2D({
           };
 
           for (let idx = 0; idx < packingSlotsPerStation; idx++) {
-            if (idx === centerIdx) continue; // keep center slot reserved as permanent blue marker
+            if (idx === centerIdx) continue;
             if (isOccupied(idx)) continue;
             availableAny.push(idx);
             const leftBlocked = idx - 1 >= 0 && isOccupied(idx - 1);
@@ -2176,7 +2177,6 @@ export function Warehouse2D({
             return chosen;
           }
 
-          // No free non-center slot left; fallback to slot 0.
           return 0;
         };
         const destSlotIdx = reservePackingSlot(destStationIdx);
@@ -2187,7 +2187,6 @@ export function Warehouse2D({
 
         const leftLaneMX = laneX("left", agvLaneLocal);
         const rightLaneMX = laneX("right", agvLaneLocal);
-        // Use the exact selected slot branch (no lane-offset detour)
         const stationBranchMY = destMY;
         
         // Determine current segment based on AGV's actual position
@@ -2200,36 +2199,46 @@ export function Warehouse2D({
           curSegment = idlePlacement.segment;
         }
 
-        // Build source waypoints using AGV path lanes only.
+        // Build source waypoints: travel on AMR paths to the pickup column,
+        // then go into the aisle center to pick up the tray (under it).
         const srcWps = buildRouteToPoint(curMX, curMY, curSegment, pickupMX, pickupPathMY, agvLaneLocal);
+        // Final step: move from horizontal AMR path into the aisle center to be under the tray
+        appendWaypoint(srcWps, { mx: pickupMX, my: aisleCenterMY });
 
         // Intelligent lane selection for rack → station path
         const optimalToStation = pickOptimalLane(agvId, pickupMX, pickupPathMY, destMX, stationBranchMY, agvLaneLocal);
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
+        // Station waypoints: return from aisle center back to AMR horizontal path first,
+        // then travel on AMR lanes to packing station.
         const stWps: { mx: number; my: number }[] = [];
+        appendWaypoint(stWps, { mx: pickupMX, my: aisleCenterMY });
+        // Return to the horizontal AMR path (exit the aisle)
         appendWaypoint(stWps, { mx: pickupMX, my: pickupPathMY });
+        // Travel on AMR path to vertical lane
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: pickupPathMY });
+        // Vertical lane to station branch
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });
+        // Horizontal to station
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
-        // Return: intelligent lane selection for return path
+        // Return: intelligent lane selection for return path — strictly on AMR lanes
         const optimalReturn = pickOptimalLane(agvId, destMX, destMY, idlePlacement.mx, idlePlacement.my, agvLaneLocal);
         const optimalReturnLaneMX = laneX(optimalReturn, agvLaneLocal);
-        const oppositeReturnLaneMX = laneX(optimalReturn === "left" ? "right" : "left", agvLaneLocal);
 
         const returnWps: { mx: number; my: number }[] = [];
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
-        // Branch back to optimal lane
+        // Branch back from station to vertical lane
         appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: stationBranchMY });
-        // Find nearest horizontal AMR path to travel to parking side
+        // Find nearest horizontal AMR path to travel on
         const nearestReturnPathMY = findNearestHorizontalPath(stationBranchMY, agvLaneLocal);
         appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: nearestReturnPathMY });
-        // Horizontal on AMR path to opposite lane if needed for parking
-        appendWaypoint(returnWps, { mx: oppositeReturnLaneMX, my: nearestReturnPathMY });
+        // Travel on horizontal AMR path to the parking side vertical lane
+        const parkingLaneMX = laneX("right", agvLaneLocal);
+        appendWaypoint(returnWps, { mx: parkingLaneMX, my: nearestReturnPathMY });
         // Vertical to parking row
-        appendWaypoint(returnWps, { mx: oppositeReturnLaneMX, my: idlePlacement.my });
+        appendWaypoint(returnWps, { mx: parkingLaneMX, my: idlePlacement.my });
         // Horizontal into parking spot
         appendWaypoint(returnWps, { mx: idlePlacement.mx, my: idlePlacement.my });
 

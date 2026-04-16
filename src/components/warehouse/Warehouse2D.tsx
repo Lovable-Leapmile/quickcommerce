@@ -580,7 +580,7 @@ export function Warehouse2D({
 
       const MIN_GAP = 0.3;
       const STOP_DIST = 0.3;
-      const LANE_SWITCH_WAIT = 0.2;
+      const LANE_SWITCH_WAIT = 0.06;
       const BRANCH_YIELD_WAIT = 0.3;
 
       // Collect positions for collision checking
@@ -625,6 +625,7 @@ export function Warehouse2D({
         let shouldSwitch = false;
         let shouldYield = false;
         let blockerId = -1;
+        let blockerDist = Number.POSITIVE_INFINITY;
 
         for (const other of positions) {
           if (other.id === agvId || !other.active) continue;
@@ -637,7 +638,10 @@ export function Warehouse2D({
           // Same lane and close enough to require arbitration.
           if (perpDist < laneThreshold && eucDist < STOP_DIST) {
             blocked = true;
-            blockerId = other.id;
+            if (eucDist < blockerDist) {
+              blockerDist = eucDist;
+              blockerId = other.id;
+            }
 
             // Head-on arbitration: only one AGV (higher ID) performs lane change.
             const otherSt = amrAnimMapRef.current.get(other.id);
@@ -659,8 +663,9 @@ export function Warehouse2D({
               const dotProduct = ndx * otherNdx + ndy * otherNdy;
               const otherFwdDist = (mx - other.mx) * otherNdx + (my - other.my) * otherNdy;
               const isHeadOn = dotProduct < -0.35 && fwdDist > 0 && otherFwdDist > 0;
+              const isLocalDeadlock = other.stopped && eucDist < STOP_DIST && fwdDist > -0.03;
 
-              if (isHeadOn) {
+              if (isHeadOn || isLocalDeadlock) {
                 if (agvId > other.id) shouldSwitch = true;
                 continue;
               }
@@ -672,7 +677,10 @@ export function Warehouse2D({
           // Very close ahead on any lane
           if (eucDist < MIN_GAP && eucDist > 0.001 && fwdDist > 0) {
             blocked = true;
-            if (blockerId === -1) blockerId = other.id;
+            if (eucDist < blockerDist) {
+              blockerDist = eucDist;
+              blockerId = other.id;
+            }
           }
         }
         return { blocked, shouldSwitch, shouldYield, blockerId };
@@ -702,7 +710,7 @@ export function Warehouse2D({
         const dy = target.my - st.my;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
-        const canSwitchLane = isHorizontalMove ? Math.abs(dy) < 0.02 : Math.abs(dx) < 0.02;
+        const canSwitchLane = isHorizontalMove ? Math.abs(dy) < 0.08 : Math.abs(dx) < 0.08;
 
         // Smooth heading angle rotation
         if (dist > 0.001) {

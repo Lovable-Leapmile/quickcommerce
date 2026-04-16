@@ -659,8 +659,7 @@ export function Warehouse2D({
               }
             }
 
-            // Same direction: only trailing AGV should switch.
-            if (fwdDist > 0 && agvId > other.id) shouldSwitch = true;
+            // Same direction: trailing AGV should wait; no lane switch arbitration here.
           }
 
           // Very close ahead on any lane
@@ -695,6 +694,8 @@ export function Warehouse2D({
         const dx = target.mx - st.mx;
         const dy = target.my - st.my;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
+        const canSwitchLane = isHorizontalMove ? Math.abs(dy) < 0.02 : Math.abs(dx) < 0.02;
 
         // Smooth heading angle rotation
         if (dist > 0.001) {
@@ -718,15 +719,8 @@ export function Warehouse2D({
           st.stopped = true;
           st.stoppedTimer += dt;
 
-          // LANE SWITCH: deterministic perpendicular lane shift for congestion release.
-          const canSwitchLane =
-            st.currentSegmentKind === "horizontal" ||
-            st.currentSegmentKind === "left-vertical" ||
-            st.currentSegmentKind === "right-vertical";
-
           if (canSwitchLane && shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
             const blocker = positions.find((p) => p.id === blockerId);
-            const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
             if (isHorizontalMove) {
               // Try both adjacent horizontal lanes and switch to the free side opposite the blocker.
               const probeDist = Math.max(STOP_DIST + 0.15, LANE_GAP_M);

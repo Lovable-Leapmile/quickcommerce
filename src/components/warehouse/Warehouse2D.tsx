@@ -1024,7 +1024,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.returnWaypoints, st.returnWpIdx, delta);
           st.returnWpIdx = newIdx;
           if (arrived) {
-            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "horizontal" : "right-vertical";
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "delivery-branch" : "right-vertical";
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;
               st.order = nextOrder;
@@ -2578,7 +2578,7 @@ export function Warehouse2D({
           amrSt.stationWpIdx = 1;
         }
         amrSt.returnWpIdx = 1;
-        amrSt.currentSegmentKind = agvId === deliveryAgvId ? "horizontal" : "delivery-branch";
+        amrSt.currentSegmentKind = agvId === deliveryAgvId ? "delivery-branch" : "delivery-branch";
       }
     });
 

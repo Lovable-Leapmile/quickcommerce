@@ -730,10 +730,44 @@ export function Warehouse2D({
           }
 
           // LANE SWITCH: instead of arbitrary perpendicular detour, just wait longer.
-          // The dual-lane system (odd/even AGV index) already separates most traffic.
-          // Off-path detours are disabled to prevent AGVs from leaving valid lanes.
+          // Active lane change on the AMR dual-lane lines (still strictly on path).
+          if (shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
+            const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
+            if (isHorizontalMove) {
+              // Switch between upper/lower horizontal lane lines of the same AMR path
+              const nearestPathCenter = horizontalPathsM.reduce((best, py) =>
+                Math.abs(py - st.my) < Math.abs(best - st.my) ? py : best,
+              horizontalPathsM[0]);
+              const lane0Y = laneY(nearestPathCenter, 0);
+              const lane1Y = laneY(nearestPathCenter, 1);
+              const currentLane = Math.abs(st.my - lane0Y) <= Math.abs(st.my - lane1Y) ? 0 : 1;
+              const switchedY = laneY(nearestPathCenter, currentLane === 0 ? 1 : 0);
+              if (Math.abs(switchedY - st.my) > 0.01) {
+                waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY });
+                st.stopped = false;
+                st.stoppedTimer = 0;
+                return { arrived: false, newIdx: wpIdx };
+              }
+            } else {
+              // Switch between inner/outer vertical lane lines on same side
+              const leftCenterDist = Math.abs(st.mx - pathLeftM);
+              const rightCenterDist = Math.abs(st.mx - pathRightM);
+              const side: "left" | "right" = leftCenterDist <= rightCenterDist ? "left" : "right";
+              const lane0X = laneX(side, 0);
+              const lane1X = laneX(side, 1);
+              const currentLane = Math.abs(st.mx - lane0X) <= Math.abs(st.mx - lane1X) ? 0 : 1;
+              const switchedX = laneX(side, currentLane === 0 ? 1 : 0);
+              if (Math.abs(switchedX - st.mx) > 0.01) {
+                waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my });
+                st.stopped = false;
+                st.stoppedTimer = 0;
+                return { arrived: false, newIdx: wpIdx };
+              }
+            }
+          }
+
           if (st.stoppedTimer > LANE_SWITCH_WAIT * 3) {
-            // After extended wait, try backing up to previous waypoint to let blocker pass
+            // Fallback: back up to previous waypoint to clear jams
             const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
             if (prevWp) {
               waypoints.splice(wpIdx, 0, { mx: prevWp.mx, my: prevWp.my });
@@ -772,6 +806,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.sourceWaypoints, st.sourceWpIdx, delta);
           st.sourceWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "rack-to-station" ? "horizontal" : "station-branch";
             st.phase = "pickup";
             st.pickupTimer = 0;
           }
@@ -815,6 +850,7 @@ export function Warehouse2D({
             if (carriedItemIndex && st.order && st.order.itemIndex !== carriedItemIndex) {
               st.order = { ...st.order, itemIndex: carriedItemIndex };
             }
+            st.currentSegmentKind = st.order?.flowType === "rack-to-station" ? "horizontal" : "station-branch";
             st.phase = "to_station";
           }
         } else if (st.phase === "to_station") {
@@ -822,6 +858,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.stationWaypoints, st.stationWpIdx, delta);
           st.stationWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "delivery-branch" : "station-branch";
             st.phase = "dropoff";
             st.dropoffTimer = 0;
           }
@@ -903,6 +940,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.returnWaypoints, st.returnWpIdx, delta);
           st.returnWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "station-branch" : "right-vertical";
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;
               st.order = nextOrder;

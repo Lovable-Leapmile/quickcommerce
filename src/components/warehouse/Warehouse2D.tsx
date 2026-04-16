@@ -2480,11 +2480,10 @@ export function Warehouse2D({
           const optimalSrcLaneMX = laneX(optimalSrcLane, agvLaneLocal);
 
           if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
-            // From delivery slot: go vertically down to top AMR path via delivery branch
-            appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
-            // Go horizontally on top path to optimal vertical lane
-            appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: topPathMY });
-            // Go to left vertical lane if not already there (stations are on the left)
+            // From delivery parking/slot: go along connector branch to top AMR path
+            appendWaypoint(srcWps, { mx: deliveryParkingMX, my: curMY });
+            appendWaypoint(srcWps, { mx: deliveryParkingMX, my: topPathMY });
+            // Go horizontally on top path to left vertical lane (stations are on the left)
             appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =

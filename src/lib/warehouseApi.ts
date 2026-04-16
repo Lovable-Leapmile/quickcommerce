@@ -1,4 +1,4 @@
-const WAREHOUSE_API_BASE = import.meta.env.VITE_WAREHOUSE_API_BASE || "/api/warehouse";
+const API_BASE = import.meta.env.VITE_WAREHOUSE_API_BASE || "/api/warehouse";
 
 type WarehouseEndpoint = "agv" | "orders" | "orders_agv" | "orders_shuttle" | "stores";
 
@@ -20,11 +20,5 @@ export function buildWarehouseApiUrl(options: WarehouseApiOptions = {}) {
     ? endpointPathMap[options.endpoint]
     : `/store/${options.id ?? 1}`;
 
-  const url = new URL(`${WAREHOUSE_API_BASE}${path}`, window.location.origin);
-
-  if (options.endpoint === "stores" && options.id != null) {
-    url.searchParams.set("id", String(options.id));
-  }
-
-  return url.toString();
+  return `${API_BASE}${path}`;
 }

@@ -2184,6 +2184,18 @@ export function Warehouse2D({
         // Go horizontally to target
         appendWaypoint(route, { mx: targetMX, my: targetPathY });
         return route;
+      } else if (startSegment.kind === "delivery-branch") {
+        // From delivery branch: go up connector to top path, then route to target
+        const topPathMYLocal = pathTopM - laneOffsetM;
+        appendWaypoint(route, { mx: startMX, my: topPathMYLocal });
+        // Go horizontally on top path to left vertical lane
+        const leftLaneMXLocal = laneX("left", lane);
+        appendWaypoint(route, { mx: leftLaneMXLocal, my: topPathMYLocal });
+        // Go vertically on left lane to target path Y
+        appendWaypoint(route, { mx: leftLaneMXLocal, my: targetPathY });
+        // Go horizontally to target
+        appendWaypoint(route, { mx: targetMX, my: targetPathY });
+        return route;
       } else if (startSegment.kind === "left-vertical" || startSegment.kind === "right-vertical") {
         // From parking: go horizontally to the vertical lane, then strictly on AMR grid
         const verticalLaneMX = startSegment.kind === "right-vertical" ? rightVerticalMX : leftVerticalMX;

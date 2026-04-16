@@ -82,6 +82,7 @@ export function OrderOverlay({
           rackDeep: item.dstDeep,
           rackSlot: item.dstSlot,
           destStation: item.packingStation,
+          destSlot: item.packingSlot,
         });
       }
     });

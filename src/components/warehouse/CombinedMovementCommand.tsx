@@ -118,6 +118,7 @@ export function CombinedMovementCommand({
             rackDeep: item.dstDeep,
             rackSlot: item.dstSlot,
             destStation: item.packingStation,
+            destSlot: item.packingSlot,
             itemIndex: itemIdx,
           });
         }

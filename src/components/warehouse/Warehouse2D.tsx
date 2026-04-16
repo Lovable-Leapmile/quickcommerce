@@ -2484,6 +2484,8 @@ export function Warehouse2D({
             appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
             // Go horizontally on top path to optimal vertical lane
             appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: topPathMY });
+            // Go to left vertical lane if not already there (stations are on the left)
+            appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =
               amrSt.currentSegmentKind === "station-branch"
@@ -2496,19 +2498,21 @@ export function Warehouse2D({
             const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
             strictRoute.forEach((point) => appendWaypoint(srcWps, point));
           }
-          // Go vertically on optimal lane to station branch Y
-          appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: stationBranchMY });
+          // Go vertically on left lane to station branch Y
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
           // Go horizontally on station branch to packing station
           appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
-        // ---- Station waypoints: station → optimal lane → top path → delivery branch → delivery slot ----
+        // ---- Station waypoints: station → left vertical lane → top path → delivery branch → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
+        const leftLaneMXLocal = laneX("left", agvLaneLocal);
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
-        appendWaypoint(stWps, { mx: srcMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: topPathMY });
+        // Go horizontally from station to left vertical lane (station branch)
+        appendWaypoint(stWps, { mx: leftLaneMXLocal, my: srcMY });
+        // Go vertically on left lane to top path
+        appendWaypoint(stWps, { mx: leftLaneMXLocal, my: topPathMY });
         // Go horizontally on top path to delivery branch X
         appendWaypoint(stWps, { mx: destMX, my: topPathMY });
         // Go vertically up on delivery branch to delivery slot

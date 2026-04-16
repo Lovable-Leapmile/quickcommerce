@@ -224,6 +224,9 @@ export function Warehouse2D({
 
   // Track filled delivery slots
   const filledDeliverySlotsRef = useRef<Set<number>>(new Set());
+  // Valid lane Y positions for horizontal paths and X positions for vertical paths (populated in drawCanvas)
+  const validLaneYsRef = useRef<number[]>([]);
+  const validLaneXsRef = useRef<number[]>([]);
 
   // Track pending delivery dispatch for auto-delivery AGV
   const pendingDeliveryRef = useRef<number[]>([]);
@@ -745,13 +748,13 @@ export function Warehouse2D({
           if (canSwitchLane && shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
             const blocker = positions.find((p) => p.id === blockerId);
             if (isHorizontalMove) {
-              // Try shifting to inner/outer lane — pick the one opposite to blocker
+              // Only switch to valid lane Y positions (Lane A or B on the same horizontal path)
               const moveDir = Math.sign(target.mx - st.mx) || 1;
-              // Probe further ahead to ensure the lane is clear past the blocker
               const passDist = blocker ? Math.abs(blocker.mx - st.mx) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
               const probeMX = st.mx + moveDir * Math.min(Math.abs(target.mx - st.mx), passDist);
-              const candidates = [st.my - LANE_GAP_M, st.my + LANE_GAP_M]
-                .filter((y) => Math.abs(y - st.my) > 0.01)
+              // Find valid lane Y positions that are within LANE_GAP_M of current Y (the other lane on same path)
+              const candidates = validLaneYsRef.current
+                .filter((y) => Math.abs(y - st.my) > 0.05 && Math.abs(y - st.my) <= LANE_GAP_M + 0.1)
                 .sort((a, b) => {
                   if (!blocker) return 0;
                   return Math.abs(b - blocker.my) - Math.abs(a - blocker.my);
@@ -787,8 +790,9 @@ export function Warehouse2D({
               const moveDir = Math.sign(target.my - st.my) || 1;
               const passDist = blocker ? Math.abs(blocker.my - st.my) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
               const probeMY = st.my + moveDir * Math.min(Math.abs(target.my - st.my), passDist);
-              const candidates = [st.mx - LANE_GAP_M, st.mx + LANE_GAP_M]
-                .filter((x) => Math.abs(x - st.mx) > 0.01)
+              // Only switch to valid lane X positions on the same vertical path
+              const candidates = validLaneXsRef.current
+                .filter((x) => Math.abs(x - st.mx) > 0.05 && Math.abs(x - st.mx) <= LANE_GAP_M + 0.1)
                 .sort((a, b) => {
                   if (!blocker) return 0;
                   return Math.abs(b - blocker.mx) - Math.abs(a - blocker.mx);
@@ -1389,18 +1393,6 @@ export function Warehouse2D({
     ctx.closePath();
     ctx.stroke();
 
-    // ====== Lane Labels: A (outer) and B (inner) ======
-    ctx.font = `bold ${Math.max(10, ppm * 0.25)}px 'Plus Jakarta Sans', sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    // Label on the top horizontal path
-    const labelX = (pathCenterLeft + pathCenterRight) / 2;
-    // A = outer lane (top of top path)
-    ctx.fillStyle = "hsl(150, 80%, 55%)";
-    ctx.fillText("A", labelX, pathCenterTop - laneOffsetPx);
-    // B = inner lane (bottom of top path)
-    ctx.fillStyle = "hsl(200, 80%, 55%)";
-    ctx.fillText("B", labelX, pathCenterTop + laneOffsetPx);
 
     // Internal horizontal crossings through gaps
     for (let a = 1; a < numAisles; a++) {
@@ -2016,6 +2008,15 @@ export function Warehouse2D({
     }
 
     horizontalPathsM.push(pathBottomM);
+
+    // Populate valid lane positions for the AMR loop to clamp lane switches
+    const allValidLaneYs: number[] = [];
+    for (const hpY of horizontalPathsM) {
+      allValidLaneYs.push(hpY - laneOffsetM, hpY + laneOffsetM);
+    }
+    validLaneYsRef.current = allValidLaneYs;
+    const allValidLaneXs: number[] = [pathLeftM - laneOffsetM, pathLeftM + laneOffsetM, pathRightM - laneOffsetM, pathRightM + laneOffsetM];
+    validLaneXsRef.current = allValidLaneXs;
 
     // All AGVs default to lane 0 (Lane A = outer). They only switch to lane 1 (B = inner) dynamically when blocked.
     const getAgvLane = (_agvId: number) => {

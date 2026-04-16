@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import type { WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?id=1`;
-
 const defaultParams: WarehouseParams = {
   rows: 2,
   racks: 10,
@@ -13,7 +11,7 @@ const defaultParams: WarehouseParams = {
   height: 4,
 };
 
-export function useStoreParams() {
+export function useStoreParams(storeId: number = 1) {
   const [params, setParams] = useState<WarehouseParams>(defaultParams);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +21,8 @@ export function useStoreParams() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(API_URL, {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?id=${storeId}`;
+        const res = await fetch(url, {
           headers: { accept: "application/json" },
         });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
@@ -46,7 +45,7 @@ export function useStoreParams() {
     };
 
     fetchParams();
-  }, []);
+  }, [storeId]);
 
   return { params, loading, error };
 }

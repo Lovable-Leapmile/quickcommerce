@@ -2241,7 +2241,7 @@ export function Warehouse2D({
         return {
           mx: deliveryParkingMX,
           my: deliveryParkingMY,
-          segment: { kind: "delivery-branch" as any },
+          segment: { kind: "delivery-branch" },
         };
       }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);

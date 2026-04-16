@@ -64,17 +64,23 @@ function CollapsibleSection({
 }
 
 export default function Index() {
-  const {
-    projects,
-    activeProject,
-    activeId,
-    loading: projectsLoading,
-    switchProject,
-    addProject,
-    updateProject,
-    deleteProject,
-    renameProject,
-  } = useProjects();
+  // Fetch all stores from API as projects
+  const { stores, loading: storesLoading } = useStores();
+  const [activeStoreId, setActiveStoreId] = useState<number>(1);
+
+  const projects = stores.map((s) => ({
+    id: String(s.store_id),
+    name: s.store_name,
+    storeId: s.store_id,
+  }));
+  const activeProject = projects.find((p) => p.storeId === activeStoreId) || projects[0];
+  const activeId = activeProject?.id ?? "";
+  const projectsLoading = storesLoading;
+
+  const switchProject = useCallback((id: string) => {
+    const store = stores.find((s) => String(s.store_id) === id);
+    if (store) setActiveStoreId(store.store_id);
+  }, [stores]);
 
   const [movementOrders, setMovementOrders] = useState<MovementOrder[]>([]);
   const [movementOrdersKey, setMovementOrdersKey] = useState(0);
@@ -92,26 +98,15 @@ export default function Index() {
   const [orderCompletedTimes, setOrderCompletedTimes] = useState<Record<number, number>>({});
   const activeOrderIdRef = useRef<number | null>(null);
 
-  // New project dialog
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-
-  // Rename dialog
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameTargetId, setRenameTargetId] = useState("");
-
   // Derived from active project — safe defaults when loading
-  const { params: storeParams, loading: storeLoading, error: storeError } = useStoreParams();
+  const { params: storeParams, loading: storeLoading, error: storeError } = useStoreParams(activeStoreId);
   const { agvs } = useAGVs();
   const { orders: combinedOrders, loading: combinedOrdersLoading, refetch: refetchCombinedOrders } = useOrders();
   const [activeAgvCounts, setActiveAgvCounts] = useState<Record<number, number>>({});
 
-  // Merge store params with packing station settings from project
+  // Merge store params with packing station settings
   const params: WarehouseParams = {
     ...storeParams,
-    packingStations: activeProject?.params?.packingStations ?? storeParams.packingStations,
-    slotsPerStation: activeProject?.params?.slotsPerStation ?? storeParams.slotsPerStation,
   };
 
   const initialTrayLabels = combinedOrders.flatMap((order) =>

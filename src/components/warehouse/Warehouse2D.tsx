@@ -729,19 +729,14 @@ export function Warehouse2D({
             return { arrived: false, newIdx: wpIdx };
           }
 
-          // LANE SWITCH: instead of arbitrary perpendicular detour, just wait longer.
-          // Active lane change on the AMR dual-lane lines (still strictly on path).
+          // LANE SWITCH: deterministic perpendicular lane shift for congestion release.
           if (shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
+            const blocker = positions.find((p) => p.id === blockerId);
             const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
             if (isHorizontalMove) {
-              // Switch between upper/lower horizontal lane lines of the same AMR path
-              const nearestPathCenter = horizontalPathsM.reduce((best, py) =>
-                Math.abs(py - st.my) < Math.abs(best - st.my) ? py : best,
-              horizontalPathsM[0]);
-              const lane0Y = laneY(nearestPathCenter, 0);
-              const lane1Y = laneY(nearestPathCenter, 1);
-              const currentLane = Math.abs(st.my - lane0Y) <= Math.abs(st.my - lane1Y) ? 0 : 1;
-              const switchedY = laneY(nearestPathCenter, currentLane === 0 ? 1 : 0);
+              // Move to adjacent horizontal lane line (± lane gap)
+              const switchDir = blocker && blocker.my >= st.my ? -1 : 1;
+              const switchedY = st.my + switchDir * LANE_GAP_M;
               if (Math.abs(switchedY - st.my) > 0.01) {
                 waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY });
                 st.stopped = false;
@@ -749,14 +744,9 @@ export function Warehouse2D({
                 return { arrived: false, newIdx: wpIdx };
               }
             } else {
-              // Switch between inner/outer vertical lane lines on same side
-              const leftCenterDist = Math.abs(st.mx - pathLeftM);
-              const rightCenterDist = Math.abs(st.mx - pathRightM);
-              const side: "left" | "right" = leftCenterDist <= rightCenterDist ? "left" : "right";
-              const lane0X = laneX(side, 0);
-              const lane1X = laneX(side, 1);
-              const currentLane = Math.abs(st.mx - lane0X) <= Math.abs(st.mx - lane1X) ? 0 : 1;
-              const switchedX = laneX(side, currentLane === 0 ? 1 : 0);
+              // Move to adjacent vertical lane line (± lane gap)
+              const switchDir = blocker && blocker.mx >= st.mx ? -1 : 1;
+              const switchedX = st.mx + switchDir * LANE_GAP_M;
               if (Math.abs(switchedX - st.mx) > 0.01) {
                 waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my });
                 st.stopped = false;

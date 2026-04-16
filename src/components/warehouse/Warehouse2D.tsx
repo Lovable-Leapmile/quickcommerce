@@ -1111,7 +1111,7 @@ export function Warehouse2D({
           st.initialized = deliverySt?.initialized ?? false;
           st.mx = deliverySt?.mx ?? 0;
           st.my = deliverySt?.my ?? 0;
-          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "horizontal";
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "delivery-branch";
           amrAnimMapRef.current.set(delivAgvId, st);
           startAMRLoop();
           changed = true;
@@ -2241,7 +2241,7 @@ export function Warehouse2D({
         return {
           mx: deliveryParkingMX,
           my: deliveryParkingMY,
-          segment: { kind: "horizontal", pathY: deliveryParkingMY },
+          segment: { kind: "delivery-branch" as any },
         };
       }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
@@ -2324,8 +2324,16 @@ export function Warehouse2D({
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         // Use the specific slot from the order's packing_location if provided
+        const centerIdx = Math.floor(packingSlotsPerStation / 2);
         const destSlotIdx = order.destSlot != null && order.destSlot > 0
-          ? Math.min(order.destSlot - 1, packingSlotsPerStation - 1)
+          ? (() => {
+              // API slot numbers 1-8 skip the center delivery slot
+              const apiSlot = order.destSlot;
+              const rawIdx = apiSlot - 1; // 0-based
+              // If the raw index >= center, shift by 1 to skip center slot
+              const adjusted = rawIdx >= centerIdx ? rawIdx + 1 : rawIdx;
+              return Math.min(adjusted, packingSlotsPerStation - 1);
+            })()
           : (() => {
               // Fallback: reserve any available slot (legacy behavior)
               const centerIdx = Math.floor(packingSlotsPerStation / 2);

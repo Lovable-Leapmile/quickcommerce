@@ -190,10 +190,18 @@ export default function Index() {
     [switchProject],
   );
 
-  if (projectsLoading || !activeProject) {
+  if (projectsLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!activeProject) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <p className="text-muted-foreground">No stores found</p>
       </div>
     );
   }

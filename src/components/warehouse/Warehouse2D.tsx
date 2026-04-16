@@ -590,6 +590,19 @@ export function Warehouse2D({
         positions.push({ id, mx: st.mx, my: st.my, stopped: st.stopped, active });
       });
 
+      const getActiveTarget = (st: AMRAnimState): { mx: number; my: number } | null => {
+        if (st.phase === "to_source") {
+          return st.sourceWaypoints[st.sourceWpIdx] ?? st.sourceWaypoints[st.sourceWaypoints.length - 1] ?? null;
+        }
+        if (st.phase === "to_station") {
+          return st.stationWaypoints[st.stationWpIdx] ?? st.stationWaypoints[st.stationWaypoints.length - 1] ?? null;
+        }
+        if (st.phase === "return_to_idle") {
+          return st.returnWaypoints[st.returnWpIdx] ?? st.returnWaypoints[st.returnWaypoints.length - 1] ?? null;
+        }
+        return null;
+      };
+
       // Check if AGV should stop
       const checkBlocked = (
         agvId: number,
@@ -626,36 +639,30 @@ export function Warehouse2D({
             blocked = true;
             blockerId = other.id;
 
-            // Check if this is a head-on collision (other AGV moving toward us)
+            // Head-on arbitration: only one AGV (higher ID) performs lane change.
             const otherSt = amrAnimMapRef.current.get(other.id);
             if (otherSt) {
-              const otherPhase = otherSt.phase;
-
-              // Check if they're moving toward each other (head-on)
-              let otherTarget: { mx: number; my: number } | null = null;
-              if (otherPhase === "to_source" && otherSt.sourceWaypoints[otherSt.sourceWpIdx]) {
-                otherTarget = otherSt.sourceWaypoints[otherSt.sourceWpIdx];
-              } else if (otherPhase === "to_station" && otherSt.stationWaypoints[otherSt.stationWpIdx]) {
-                otherTarget = otherSt.stationWaypoints[otherSt.stationWpIdx];
-              } else if (otherPhase === "return_to_idle" && otherSt.returnWaypoints[otherSt.returnWpIdx]) {
-                otherTarget = otherSt.returnWaypoints[otherSt.returnWpIdx];
-              }
+              const otherTarget = getActiveTarget(otherSt);
+              let otherNdx = Math.cos(otherSt.angle);
+              let otherNdy = Math.sin(otherSt.angle);
 
               if (otherTarget) {
                 const otherDx = otherTarget.mx - other.mx;
                 const otherDy = otherTarget.my - other.my;
                 const otherMoveDist = Math.sqrt(otherDx * otherDx + otherDy * otherDy);
                 if (otherMoveDist > 0.001) {
-                  const otherNdx = otherDx / otherMoveDist;
-                  const otherNdy = otherDy / otherMoveDist;
-                  // Dot product of directions: negative means head-on
-                  const dotProduct = ndx * otherNdx + ndy * otherNdy;
-                  if (dotProduct < -0.5) {
-                    // Head-on: both stop, and one AGV (higher ID) changes to the free adjacent lane.
-                    if (agvId > other.id) shouldSwitch = true;
-                    continue;
-                  }
+                  otherNdx = otherDx / otherMoveDist;
+                  otherNdy = otherDy / otherMoveDist;
                 }
+              }
+
+              const dotProduct = ndx * otherNdx + ndy * otherNdy;
+              const otherFwdDist = (mx - other.mx) * otherNdx + (my - other.my) * otherNdy;
+              const isHeadOn = dotProduct < -0.35 && fwdDist > 0 && otherFwdDist > 0;
+
+              if (isHeadOn) {
+                if (agvId > other.id) shouldSwitch = true;
+                continue;
               }
             }
 
@@ -737,6 +744,11 @@ export function Warehouse2D({
                 const switchedY = candidates[0];
                 // Full detour: shift lane, run parallel, then rejoin at the same target X.
                 waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY }, { mx: target.mx, my: switchedY });
+                const shift = switchedY - st.my;
+                if (Math.abs(shift) > 0.0001) {
+                  // Nudge immediately toward new lane to break stop deadlocks.
+                  st.my += Math.sign(shift) * Math.min(Math.abs(shift), Math.max(0.02, AMR_SPEED * dt));
+                }
                 st.stopped = false;
                 st.stoppedTimer = 0;
                 return { arrived: false, newIdx: wpIdx };
@@ -757,6 +769,11 @@ export function Warehouse2D({
                 const switchedX = candidates[0];
                 // Full detour: shift lane, run parallel, then rejoin at the same target Y.
                 waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my }, { mx: switchedX, my: target.my });
+                const shift = switchedX - st.mx;
+                if (Math.abs(shift) > 0.0001) {
+                  // Nudge immediately toward new lane to break stop deadlocks.
+                  st.mx += Math.sign(shift) * Math.min(Math.abs(shift), Math.max(0.02, AMR_SPEED * dt));
+                }
                 st.stopped = false;
                 st.stoppedTimer = 0;
                 return { arrived: false, newIdx: wpIdx };

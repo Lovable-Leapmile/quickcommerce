@@ -790,8 +790,9 @@ export function Warehouse2D({
               const moveDir = Math.sign(target.my - st.my) || 1;
               const passDist = blocker ? Math.abs(blocker.my - st.my) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
               const probeMY = st.my + moveDir * Math.min(Math.abs(target.my - st.my), passDist);
-              const candidates = [st.mx - LANE_GAP_M, st.mx + LANE_GAP_M]
-                .filter((x) => Math.abs(x - st.mx) > 0.01)
+              // Only switch to valid lane X positions on the same vertical path
+              const candidates = validLaneXsRef.current
+                .filter((x) => Math.abs(x - st.mx) > 0.05 && Math.abs(x - st.mx) <= LANE_GAP_M + 0.1)
                 .sort((a, b) => {
                   if (!blocker) return 0;
                   return Math.abs(b - blocker.mx) - Math.abs(a - blocker.mx);

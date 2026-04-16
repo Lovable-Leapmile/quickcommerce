@@ -578,9 +578,9 @@ export function Warehouse2D({
       const PICKUP_DURATION = 0.8;
       const DROPOFF_DURATION = 0.8;
 
-      const MIN_GAP = 0.4;
-      const STOP_DIST = MIN_GAP + 0.15;
-      const LANE_SWITCH_WAIT = 0.5;
+      const MIN_GAP = 0.3;
+      const STOP_DIST = 0.3;
+      const LANE_SWITCH_WAIT = 0.2;
       const BRANCH_YIELD_WAIT = 0.3;
 
       // Collect positions for collision checking
@@ -728,34 +728,40 @@ export function Warehouse2D({
             const blocker = positions.find((p) => p.id === blockerId);
             const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
             if (isHorizontalMove) {
-              // Try both adjacent horizontal lanes and pick a free one.
+              // Try both adjacent horizontal lanes and switch to the free side opposite the blocker.
+              const probeDist = Math.max(STOP_DIST + 0.15, LANE_GAP_M);
+              const probeMX = st.mx + (Math.sign(target.mx - st.mx) || 1) * Math.min(Math.abs(target.mx - st.mx), probeDist);
               const candidates = [st.my - LANE_GAP_M, st.my + LANE_GAP_M]
                 .filter((y) => Math.abs(y - st.my) > 0.01)
-                .filter((y) => isLanePointFree(agvId, st.mx, y) && isLanePointFree(agvId, target.mx, y));
+                .sort((a, b) => {
+                  if (!blocker) return 0;
+                  return Math.abs(b - blocker.my) - Math.abs(a - blocker.my);
+                })
+                .filter((y) => isLanePointFree(agvId, st.mx, y) && isLanePointFree(agvId, probeMX, y));
 
               if (candidates.length > 0) {
-                const switchedY =
-                  blocker
-                    ? candidates.sort((a, b) => Math.abs(b - blocker.my) - Math.abs(a - blocker.my))[0]
-                    : candidates[0];
-                // Full detour: shift lane, run parallel, then rejoin.
+                const switchedY = candidates[0];
+                // Full detour: shift lane, run parallel, then rejoin at the same target X.
                 waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY }, { mx: target.mx, my: switchedY });
                 st.stopped = false;
                 st.stoppedTimer = 0;
                 return { arrived: false, newIdx: wpIdx };
               }
             } else {
-              // Try both adjacent vertical lanes and pick a free one.
+              // Try both adjacent vertical lanes and switch to the free side opposite the blocker.
+              const probeDist = Math.max(STOP_DIST + 0.15, LANE_GAP_M);
+              const probeMY = st.my + (Math.sign(target.my - st.my) || 1) * Math.min(Math.abs(target.my - st.my), probeDist);
               const candidates = [st.mx - LANE_GAP_M, st.mx + LANE_GAP_M]
                 .filter((x) => Math.abs(x - st.mx) > 0.01)
-                .filter((x) => isLanePointFree(agvId, x, st.my) && isLanePointFree(agvId, x, target.my));
+                .sort((a, b) => {
+                  if (!blocker) return 0;
+                  return Math.abs(b - blocker.mx) - Math.abs(a - blocker.mx);
+                })
+                .filter((x) => isLanePointFree(agvId, x, st.my) && isLanePointFree(agvId, x, probeMY));
 
               if (candidates.length > 0) {
-                const switchedX =
-                  blocker
-                    ? candidates.sort((a, b) => Math.abs(b - blocker.mx) - Math.abs(a - blocker.mx))[0]
-                    : candidates[0];
-                // Full detour: shift lane, run parallel, then rejoin.
+                const switchedX = candidates[0];
+                // Full detour: shift lane, run parallel, then rejoin at the same target Y.
                 waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my }, { mx: switchedX, my: target.my });
                 st.stopped = false;
                 st.stoppedTimer = 0;
@@ -1694,13 +1700,6 @@ export function Warehouse2D({
     ctx.lineTo(delParkBranchX + 3, delParkY + parkingSpotHPx - 8);
     ctx.closePath();
     ctx.fill();
-
-    // Label
-    ctx.font = "bold 8px monospace";
-    ctx.fillStyle = "hsl(160, 50%, 65%)";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    drawReadableText("DEL PKG", delParkBranchX, delParkY + parkingSpotHPx + 4);
 
     // Delivery parking position in meters
     const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;

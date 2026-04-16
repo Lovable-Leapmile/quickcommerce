@@ -1421,7 +1421,8 @@ export function Warehouse2D({
     const stationHPx = stationH_m * ppm;
     const stationGapPx = stationGap_m * ppm;
     const totalStationsH = stations * stationHPx + (stations - 1) * stationGapPx;
-    const stationsX = pathCenterLeft - amrPathWPx / 2 - pathMargin_m * ppm * 0.5 - stationWPx;
+    const packingPathGap = 0.8 * ppm; // gap between packing stations and AMR path
+    const stationsX = pathCenterLeft - amrPathWPx / 2 - packingPathGap - stationWPx;
     const stationsStartY = startY + layoutH / 2 - totalStationsH / 2;
     const packingInnerInset = 1;
     const packingSlotCellW = Math.min(slotW * 0.9, stationWPx - packingInnerInset * 2);

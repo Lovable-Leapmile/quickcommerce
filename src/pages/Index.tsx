@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { WarehouseConfig, StatCard, type WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 import { useStoreParams } from "@/hooks/useStoreParams";
+import { useStores } from "@/hooks/useStores";
 import { useAGVs } from "@/hooks/useAGVs";
 import { useOrders } from "@/hooks/useOrders";
 import { Warehouse2D } from "@/components/warehouse/Warehouse2D";
@@ -14,7 +15,6 @@ import {
   type ComponentStyles,
   type ComponentType,
 } from "@/components/warehouse/ComponentStyles";
-import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

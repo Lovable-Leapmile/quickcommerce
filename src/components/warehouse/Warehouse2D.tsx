@@ -2281,11 +2281,10 @@ export function Warehouse2D({
         amrSt.my = idlePlacement.my;
       }
       const isUnsetPosition = Math.abs(amrSt.mx) < 0.001 && Math.abs(amrSt.my) < 0.001;
-      const isIdleOrDone = amrSt.phase === "idle" || amrSt.phase === "done";
       if (
         !amrSt.initialized ||
         isUnsetPosition ||
-        (agvId === deliveryAgvId && isIdleOrDone && amrSt.currentSegmentKind !== idlePlacement.segment.kind)
+        (agvId === deliveryAgvId && amrSt.currentSegmentKind !== idlePlacement.segment.kind)
       ) {
         amrSt.mx = idlePlacement.mx;
         amrSt.my = idlePlacement.my;

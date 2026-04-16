@@ -1580,6 +1580,7 @@ export function Warehouse2D({
     ctx.textBaseline = "bottom";
     drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
 
+
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;
     const parkingSpotHPx = PARKING_SPOT_H_M * ppm;
@@ -1660,6 +1661,50 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     drawReadableText("AGV Parking", parkingX + parkingSpotWPx + 14, parkingStartY + totalParkingH / 2, -Math.PI / 2);
+
+    // ====== Dedicated Delivery AGV Parking: right of delivery area ======
+    const delParkGapPx = 0.6 * ppm;
+    const delParkX = deliveryDx + deliveryWPx + delParkGapPx;
+    const delParkY = deliveryDy + (deliveryHPx - parkingSpotHPx) / 2;
+    const delParkCenterY = delParkY + parkingSpotHPx / 2;
+    const delParkBranchX = delParkX + parkingSpotWPx / 2;
+
+    // Branch path from top AMR lane to delivery parking
+    ctx.strokeStyle = pathColor;
+    ctx.lineWidth = LANE_LINE_W_PX;
+    ctx.beginPath();
+    ctx.moveTo(delParkBranchX, pathCenterTop - laneOffsetPx);
+    ctx.lineTo(delParkBranchX, delParkCenterY);
+    ctx.stroke();
+
+    // Parking spot background
+    ctx.fillStyle = "hsl(160, 15%, 20%)";
+    ctx.beginPath();
+    ctx.roundRect(delParkX, delParkY, parkingSpotWPx, parkingSpotHPx, 3);
+    ctx.fill();
+    ctx.strokeStyle = "hsl(160, 40%, 40%)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Direction indicator (triangle pointing down)
+    ctx.fillStyle = "hsl(160, 60%, 50%)";
+    ctx.beginPath();
+    ctx.moveTo(delParkBranchX, delParkY + parkingSpotHPx - 3);
+    ctx.lineTo(delParkBranchX - 3, delParkY + parkingSpotHPx - 8);
+    ctx.lineTo(delParkBranchX + 3, delParkY + parkingSpotHPx - 8);
+    ctx.closePath();
+    ctx.fill();
+
+    // Label
+    ctx.font = "bold 8px monospace";
+    ctx.fillStyle = "hsl(160, 50%, 65%)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    drawReadableText("DEL PKG", delParkBranchX, delParkY + parkingSpotHPx + 4);
+
+    // Delivery parking position in meters
+    const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
+    const deliveryParkMY = (delParkCenterY - startY) / ppm;
 
     let currentY = startY;
 
@@ -1939,9 +1984,8 @@ export function Warehouse2D({
 
     // Dedicated delivery AGV parking near delivery area (separate from main parking column).
     const deliveryAgvId = getDeliveryAgvId();
-    const deliveryBranchPathMY = pathTopM - laneOffsetM;
-    const deliveryParkingMX = laneX("right", 0);
-    const deliveryParkingMY = deliveryBranchPathMY;
+    const deliveryParkingMX = deliveryParkMX;
+    const deliveryParkingMY = deliveryParkMY;
 
     const appendWaypoint = (points: { mx: number; my: number }[], point: { mx: number; my: number }) => {
       const last = points[points.length - 1];
@@ -2331,7 +2375,7 @@ export function Warehouse2D({
         const destMY = destSlotPos.my;
 
         const leftLaneMX = laneX("left", agvLaneLocal);
-        const topPathMY = deliveryBranchPathMY;
+        const topPathMY = pathTopM - laneOffsetM;
 
         // Intelligent lane selection for delivery flow
         const optimalDeliveryLane = pickOptimalLane(agvId, srcMX, srcMY, destMX, topPathMY, agvLaneLocal);

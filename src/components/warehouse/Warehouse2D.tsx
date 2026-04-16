@@ -579,8 +579,8 @@ export function Warehouse2D({
       const DROPOFF_DURATION = 0.8;
 
       const MIN_GAP = 0.3;
-      const STOP_DIST = 0.3;
-      const LANE_SWITCH_WAIT = 0.06;
+      const STOP_DIST = 1.2;
+      const LANE_SWITCH_WAIT = 0.02;
       const BRANCH_YIELD_WAIT = 0.3;
 
       // Collect positions for collision checking
@@ -604,6 +604,7 @@ export function Warehouse2D({
       };
 
       // Check if AGV should stop
+      // Check if AGV should stop or switch lane
       const checkBlocked = (
         agvId: number,
         mx: number,
@@ -635,21 +636,15 @@ export function Warehouse2D({
           const fwdDist = odx * ndx + ody * ndy;
           const perpDist = Math.abs(odx * -ndy + ody * ndx);
 
-          // Same lane and close enough to require arbitration.
-          if (perpDist < laneThreshold && eucDist < STOP_DIST) {
-            blocked = true;
-            if (eucDist < blockerDist) {
-              blockerDist = eucDist;
-              blockerId = other.id;
-            }
-
-            // Head-on arbitration: only one AGV (higher ID) performs lane change.
+          // Same lane check
+          if (perpDist < laneThreshold && fwdDist > -0.05 && eucDist < STOP_DIST) {
+            // Determine if head-on
             const otherSt = amrAnimMapRef.current.get(other.id);
+            let isHeadOn = false;
             if (otherSt) {
               const otherTarget = getActiveTarget(otherSt);
               let otherNdx = Math.cos(otherSt.angle);
               let otherNdy = Math.sin(otherSt.angle);
-
               if (otherTarget) {
                 const otherDx = otherTarget.mx - other.mx;
                 const otherDy = otherTarget.my - other.my;
@@ -659,23 +654,36 @@ export function Warehouse2D({
                   otherNdy = otherDy / otherMoveDist;
                 }
               }
-
               const dotProduct = ndx * otherNdx + ndy * otherNdy;
               const otherFwdDist = (mx - other.mx) * otherNdx + (my - other.my) * otherNdy;
-              const isHeadOn = dotProduct < -0.35 && fwdDist > 0 && otherFwdDist > 0;
-              const isLocalDeadlock = other.stopped && eucDist < STOP_DIST && fwdDist > -0.03;
+              isHeadOn = dotProduct < -0.3 && fwdDist > 0 && otherFwdDist > -0.1;
+            }
+            
+            // Also treat local deadlock (both stopped facing each other) as head-on
+            const isLocalDeadlock = otherSt?.stopped && fwdDist > 0 && eucDist < MIN_GAP * 3;
 
-              if (isHeadOn || isLocalDeadlock) {
-                if (agvId > other.id) shouldSwitch = true;
-                continue;
+            if (isHeadOn || isLocalDeadlock) {
+              // Head-on: only higher-ID switches, lower-ID stops at gap
+              blocked = true;
+              if (eucDist < blockerDist) {
+                blockerDist = eucDist;
+                blockerId = other.id;
+              }
+              if (agvId > other.id) {
+                shouldSwitch = true;
+              }
+            } else if (fwdDist > 0 && eucDist < MIN_GAP) {
+              // Same direction trailing — just stop
+              blocked = true;
+              if (eucDist < blockerDist) {
+                blockerDist = eucDist;
+                blockerId = other.id;
               }
             }
-
-            // Same direction: trailing AGV should wait; no lane switch arbitration here.
           }
 
           // Very close ahead on any lane
-          if (eucDist < MIN_GAP && eucDist > 0.001 && fwdDist > 0) {
+          if (eucDist < MIN_GAP && eucDist > 0.001 && fwdDist > 0 && perpDist >= laneThreshold) {
             blocked = true;
             if (eucDist < blockerDist) {
               blockerDist = eucDist;
@@ -710,7 +718,7 @@ export function Warehouse2D({
         const dy = target.my - st.my;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
-        const canSwitchLane = isHorizontalMove ? Math.abs(dy) < 0.08 : Math.abs(dx) < 0.08;
+        const canSwitchLane = isHorizontalMove ? Math.abs(dy) < 0.2 : Math.abs(dx) < 0.2;
 
         // Smooth heading angle rotation
         if (dist > 0.001) {
@@ -737,9 +745,11 @@ export function Warehouse2D({
           if (canSwitchLane && shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
             const blocker = positions.find((p) => p.id === blockerId);
             if (isHorizontalMove) {
-              // Try both adjacent horizontal lanes and switch to the free side opposite the blocker.
-              const probeDist = Math.max(STOP_DIST + 0.15, LANE_GAP_M);
-              const probeMX = st.mx + (Math.sign(target.mx - st.mx) || 1) * Math.min(Math.abs(target.mx - st.mx), probeDist);
+              // Try shifting to inner/outer lane — pick the one opposite to blocker
+              const moveDir = Math.sign(target.mx - st.mx) || 1;
+              // Probe further ahead to ensure the lane is clear past the blocker
+              const passDist = blocker ? Math.abs(blocker.mx - st.mx) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
+              const probeMX = st.mx + moveDir * Math.min(Math.abs(target.mx - st.mx), passDist);
               const candidates = [st.my - LANE_GAP_M, st.my + LANE_GAP_M]
                 .filter((y) => Math.abs(y - st.my) > 0.01)
                 .sort((a, b) => {
@@ -750,11 +760,23 @@ export function Warehouse2D({
 
               if (candidates.length > 0) {
                 const switchedY = candidates[0];
-                // Full detour: shift lane, run parallel, then rejoin at the same target X.
-                waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY }, { mx: target.mx, my: switchedY });
+                // Full detour: shift to new lane, travel past blocker, then rejoin original lane
+                const rejoinX = blocker
+                  ? blocker.mx + moveDir * LANE_GAP_M * 1.5
+                  : target.mx;
+                // Clamp rejoinX so it doesn't overshoot the target
+                const clampedRejoinX = moveDir > 0
+                  ? Math.min(rejoinX, target.mx)
+                  : Math.max(rejoinX, target.mx);
+                waypoints.splice(
+                  wpIdx,
+                  0,
+                  { mx: st.mx, my: switchedY },          // shift to new lane
+                  { mx: clampedRejoinX, my: switchedY },  // travel past blocker on new lane
+                  { mx: clampedRejoinX, my: st.my },      // rejoin original lane
+                );
                 const shift = switchedY - st.my;
                 if (Math.abs(shift) > 0.0001) {
-                  // Nudge immediately toward new lane to break stop deadlocks.
                   st.my += Math.sign(shift) * Math.min(Math.abs(shift), Math.max(0.02, AMR_SPEED * dt));
                 }
                 st.stopped = false;
@@ -762,9 +784,9 @@ export function Warehouse2D({
                 return { arrived: false, newIdx: wpIdx };
               }
             } else {
-              // Try both adjacent vertical lanes and switch to the free side opposite the blocker.
-              const probeDist = Math.max(STOP_DIST + 0.15, LANE_GAP_M);
-              const probeMY = st.my + (Math.sign(target.my - st.my) || 1) * Math.min(Math.abs(target.my - st.my), probeDist);
+              const moveDir = Math.sign(target.my - st.my) || 1;
+              const passDist = blocker ? Math.abs(blocker.my - st.my) + LANE_GAP_M * 2 : LANE_GAP_M * 3;
+              const probeMY = st.my + moveDir * Math.min(Math.abs(target.my - st.my), passDist);
               const candidates = [st.mx - LANE_GAP_M, st.mx + LANE_GAP_M]
                 .filter((x) => Math.abs(x - st.mx) > 0.01)
                 .sort((a, b) => {
@@ -775,11 +797,21 @@ export function Warehouse2D({
 
               if (candidates.length > 0) {
                 const switchedX = candidates[0];
-                // Full detour: shift lane, run parallel, then rejoin at the same target Y.
-                waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my }, { mx: switchedX, my: target.my });
+                const rejoinY = blocker
+                  ? blocker.my + moveDir * LANE_GAP_M * 1.5
+                  : target.my;
+                const clampedRejoinY = moveDir > 0
+                  ? Math.min(rejoinY, target.my)
+                  : Math.max(rejoinY, target.my);
+                waypoints.splice(
+                  wpIdx,
+                  0,
+                  { mx: switchedX, my: st.my },           // shift to new lane
+                  { mx: switchedX, my: clampedRejoinY },  // travel past blocker
+                  { mx: st.mx, my: clampedRejoinY },      // rejoin original lane
+                );
                 const shift = switchedX - st.mx;
                 if (Math.abs(shift) > 0.0001) {
-                  // Nudge immediately toward new lane to break stop deadlocks.
                   st.mx += Math.sign(shift) * Math.min(Math.abs(shift), Math.max(0.02, AMR_SPEED * dt));
                 }
                 st.stopped = false;
@@ -800,8 +832,8 @@ export function Warehouse2D({
             return { arrived: false, newIdx: wpIdx };
           }
 
-          if (st.stoppedTimer > LANE_SWITCH_WAIT * 3) {
-            // Fallback: back up to previous waypoint to clear jams
+          if (st.stoppedTimer > 0.5) {
+            // Fallback: back up to previous waypoint to clear jams after extended waiting
             const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
             if (prevWp) {
               waypoints.splice(wpIdx, 0, { mx: prevWp.mx, my: prevWp.my });

@@ -1355,6 +1355,7 @@ export function Warehouse2D({
     const shuttleColor = componentStyles.shuttle.color;
     const railColor = componentStyles.rail.color;
 
+    if (showAGVSystem) {
     // ====== AMR Path (dual-lane narrow lines) ======
     const pathCenterLeft = startX - pathMargin_m * ppm - amrPathWPx / 2;
     const pathCenterRight = startX + layoutW + pathMargin_m * ppm + amrPathWPx / 2;
@@ -1415,11 +1416,14 @@ export function Warehouse2D({
     // Internal horizontal crossings through gaps
     for (let a = 1; a < numAisles; a++) {
       if (a % 2 === 0) {
-        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH) * ppm - (GAP_BETWEEN_PAIRS * ppm) / 2;
+        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH, gapBetweenPairs) * ppm - (gapBetweenPairs * ppm) / 2;
         drawDualLane(pathCenterLeft, gapCenterY, pathCenterRight, gapCenterY, true);
       }
     }
+    } // end AMR paths
 
+
+    if (showAGVSystem) {
     // ====== Packing Stations: vertical column parallel to AMR path, with gaps ======
     const stationWPx = stationW_m * ppm;
     const stationHPx = stationH_m * ppm;
@@ -1583,7 +1587,10 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     drawReadableText("Packing Area", stationsX - 12, stationsStartY + totalStationsH / 2, -Math.PI / 2);
+    } // end packing stations
 
+
+    if (showAGVSystem) {
     // ====== Single Delivery Station at top near x=5m, y=2m ======
     const deliveryWPx = deliveryW_m * ppm;
     const deliveryHPx = deliveryH_m * ppm;
@@ -1660,8 +1667,11 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
+    } // end delivery station
 
 
+
+    if (showAGVSystem) {
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;
     const parkingSpotHPx = PARKING_SPOT_H_M * ppm;
@@ -1779,6 +1789,8 @@ export function Warehouse2D({
     // Delivery parking position in meters
     const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
     const deliveryParkMY = (delParkCenterY - startY) / ppm;
+    } // end parking
+
 
     let currentY = startY;
 
@@ -1995,13 +2007,14 @@ export function Warehouse2D({
       }
 
       currentY += aisleGroupH * ppm;
-      if (a % 2 === 1 && a < numAisles - 1) currentY += GAP_BETWEEN_PAIRS * ppm;
+      if (a % 2 === 1 && a < numAisles - 1) currentY += gapBetweenPairs * ppm;
     }
 
     // ====== Helper: convert pixel world coords to meters relative to warehouse origin ======
     const toMX = (px: number) => (px - startX) / ppm;
     const toMY = (py: number) => (py - startY) / ppm;
 
+    if (showAGVSystem) {
     // ====== Initialize idle positions for all AGVs in the map ======
     for (const agv of agvList) {
       if (!amrAnimMapRef.current.has(agv.agv_id)) {
@@ -2021,7 +2034,7 @@ export function Warehouse2D({
 
     for (let a = 1; a < numAisles; a++) {
       if (a % 2 === 0) {
-        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH) * ppm - (GAP_BETWEEN_PAIRS * ppm) / 2;
+        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH, gapBetweenPairs) * ppm - (gapBetweenPairs * ppm) / 2;
         horizontalPathsM.push(toMY(gapCenterY));
       }
     }
@@ -2344,7 +2357,7 @@ export function Warehouse2D({
         const pickupMX = toMX(rackCenterXPx);
         const pickupLaneMY = getAgvPickupLaneMY(rackRow, agvLaneLocal);
 
-        const aisleStartYPx = startY + aisleYOffset(rackAisleIdx, numAisles, aisleGroupH) * ppm;
+        const aisleStartYPx = startY + aisleYOffset(rackAisleIdx, numAisles, aisleGroupH, gapBetweenPairs) * ppm;
         const trayCenterYPx =
           rackSide === "top"
             ? aisleStartYPx + (deep - rackDeep) * slotD + slotD / 2
@@ -2750,6 +2763,8 @@ export function Warehouse2D({
       ctx.fillText(label, 0, lblBgY + lblBgH / 2);
       ctx.restore();
     }
+    } // end AGV system
+
 
     // Store grid info for click handler
     gridInfoRef.current = { ppm, siteX, siteY };

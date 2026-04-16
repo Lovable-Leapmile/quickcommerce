@@ -1024,7 +1024,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.returnWaypoints, st.returnWpIdx, delta);
           st.returnWpIdx = newIdx;
           if (arrived) {
-            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "horizontal" : "right-vertical";
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "delivery-branch" : "right-vertical";
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;
               st.order = nextOrder;
@@ -1111,7 +1111,7 @@ export function Warehouse2D({
           st.initialized = deliverySt?.initialized ?? false;
           st.mx = deliverySt?.mx ?? 0;
           st.my = deliverySt?.my ?? 0;
-          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "horizontal";
+          st.currentSegmentKind = deliverySt?.currentSegmentKind ?? "delivery-branch";
           amrAnimMapRef.current.set(delivAgvId, st);
           startAMRLoop();
           changed = true;
@@ -2043,7 +2043,7 @@ export function Warehouse2D({
     const nearlySamePoint = (a: { mx: number; my: number }, b: { mx: number; my: number }) =>
       Math.abs(a.mx - b.mx) < 0.001 && Math.abs(a.my - b.my) < 0.001;
 
-    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number } | { kind: "station-branch" };
+    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number } | { kind: "station-branch" } | { kind: "delivery-branch" };
 
     type IdlePlacement = {
       mx: number;
@@ -2184,6 +2184,18 @@ export function Warehouse2D({
         // Go horizontally to target
         appendWaypoint(route, { mx: targetMX, my: targetPathY });
         return route;
+      } else if (startSegment.kind === "delivery-branch") {
+        // From delivery branch: go up connector to top path, then route to target
+        const topPathMYLocal = pathTopM - laneOffsetM;
+        appendWaypoint(route, { mx: startMX, my: topPathMYLocal });
+        // Go horizontally on top path to left vertical lane
+        const leftLaneMXLocal = laneX("left", lane);
+        appendWaypoint(route, { mx: leftLaneMXLocal, my: topPathMYLocal });
+        // Go vertically on left lane to target path Y
+        appendWaypoint(route, { mx: leftLaneMXLocal, my: targetPathY });
+        // Go horizontally to target
+        appendWaypoint(route, { mx: targetMX, my: targetPathY });
+        return route;
       } else if (startSegment.kind === "left-vertical" || startSegment.kind === "right-vertical") {
         // From parking: go horizontally to the vertical lane, then strictly on AMR grid
         const verticalLaneMX = startSegment.kind === "right-vertical" ? rightVerticalMX : leftVerticalMX;
@@ -2241,7 +2253,7 @@ export function Warehouse2D({
         return {
           mx: deliveryParkingMX,
           my: deliveryParkingMY,
-          segment: { kind: "horizontal", pathY: deliveryParkingMY },
+          segment: { kind: "delivery-branch" },
         };
       }
       const agvIdx = agvList.findIndex((a) => a.agv_id === agvId);
@@ -2324,8 +2336,16 @@ export function Warehouse2D({
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         // Use the specific slot from the order's packing_location if provided
+        const centerIdx = Math.floor(packingSlotsPerStation / 2);
         const destSlotIdx = order.destSlot != null && order.destSlot > 0
-          ? Math.min(order.destSlot - 1, packingSlotsPerStation - 1)
+          ? (() => {
+              // API slot numbers 1-8 skip the center delivery slot
+              const apiSlot = order.destSlot;
+              const rawIdx = apiSlot - 1; // 0-based
+              // If the raw index >= center, shift by 1 to skip center slot
+              const adjusted = rawIdx >= centerIdx ? rawIdx + 1 : rawIdx;
+              return Math.min(adjusted, packingSlotsPerStation - 1);
+            })()
           : (() => {
               // Fallback: reserve any available slot (legacy behavior)
               const centerIdx = Math.floor(packingSlotsPerStation / 2);
@@ -2375,9 +2395,11 @@ export function Warehouse2D({
             ? { kind: "station-branch" }
             : amrSt.currentSegmentKind === "left-vertical"
               ? { kind: "left-vertical" }
-              : amrSt.currentSegmentKind === "horizontal"
-                ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
-                : { kind: "right-vertical" };
+              : amrSt.currentSegmentKind === "delivery-branch"
+                ? { kind: "delivery-branch" }
+                : amrSt.currentSegmentKind === "horizontal"
+                  ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
+                  : { kind: "right-vertical" };
 
         // Build source waypoints: travel strictly on AMR paths to the exact pickup column.
         const srcWps = buildRouteToPoint(curMX, curMY, curSegment, pickupMX, pickupLaneMY, agvLaneLocal);
@@ -2556,7 +2578,7 @@ export function Warehouse2D({
           amrSt.stationWpIdx = 1;
         }
         amrSt.returnWpIdx = 1;
-        amrSt.currentSegmentKind = agvId === deliveryAgvId ? "horizontal" : "delivery-branch";
+        amrSt.currentSegmentKind = agvId === deliveryAgvId ? "delivery-branch" : "delivery-branch";
       }
     });
 

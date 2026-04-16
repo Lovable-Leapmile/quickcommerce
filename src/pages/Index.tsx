@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { WarehouseConfig, StatCard, type WarehouseParams } from "@/components/warehouse/WarehouseConfig";
 import { useStoreParams } from "@/hooks/useStoreParams";
+import { useStores } from "@/hooks/useStores";
 import { useAGVs } from "@/hooks/useAGVs";
 import { useOrders } from "@/hooks/useOrders";
 import { Warehouse2D } from "@/components/warehouse/Warehouse2D";
@@ -14,17 +15,13 @@ import {
   type ComponentStyles,
   type ComponentType,
 } from "@/components/warehouse/ComponentStyles";
-import { useProjects } from "@/hooks/useProjects";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Save,
@@ -32,9 +29,6 @@ import {
   Move,
   ChevronDown,
   ChevronRight,
-  Plus,
-  Trash2,
-  Pencil,
   Loader2,
   Warehouse,
   PanelLeftClose,
@@ -64,17 +58,23 @@ function CollapsibleSection({
 }
 
 export default function Index() {
-  const {
-    projects,
-    activeProject,
-    activeId,
-    loading: projectsLoading,
-    switchProject,
-    addProject,
-    updateProject,
-    deleteProject,
-    renameProject,
-  } = useProjects();
+  // Fetch all stores from API as projects
+  const { stores, loading: storesLoading } = useStores();
+  const [activeStoreId, setActiveStoreId] = useState<number>(1);
+
+  const projects = stores.map((s) => ({
+    id: String(s.store_id),
+    name: s.store_name,
+    storeId: s.store_id,
+  }));
+  const activeProject = projects.find((p) => p.storeId === activeStoreId) || projects[0];
+  const activeId = activeProject?.id ?? "";
+  const projectsLoading = storesLoading;
+
+  const switchProject = useCallback((id: string) => {
+    const store = stores.find((s) => String(s.store_id) === id);
+    if (store) setActiveStoreId(store.store_id);
+  }, [stores]);
 
   const [movementOrders, setMovementOrders] = useState<MovementOrder[]>([]);
   const [movementOrdersKey, setMovementOrdersKey] = useState(0);
@@ -92,26 +92,15 @@ export default function Index() {
   const [orderCompletedTimes, setOrderCompletedTimes] = useState<Record<number, number>>({});
   const activeOrderIdRef = useRef<number | null>(null);
 
-  // New project dialog
-  const [newProjectOpen, setNewProjectOpen] = useState(false);
-  const [newProjectName, setNewProjectName] = useState("");
-
-  // Rename dialog
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
-  const [renameTargetId, setRenameTargetId] = useState("");
-
   // Derived from active project — safe defaults when loading
-  const { params: storeParams, loading: storeLoading, error: storeError } = useStoreParams();
+  const { params: storeParams, loading: storeLoading, error: storeError } = useStoreParams(activeStoreId);
   const { agvs } = useAGVs();
   const { orders: combinedOrders, loading: combinedOrdersLoading, refetch: refetchCombinedOrders } = useOrders();
   const [activeAgvCounts, setActiveAgvCounts] = useState<Record<number, number>>({});
 
-  // Merge store params with packing station settings from project
+  // Merge store params with packing station settings
   const params: WarehouseParams = {
     ...storeParams,
-    packingStations: activeProject?.params?.packingStations ?? storeParams.packingStations,
-    slotsPerStation: activeProject?.params?.slotsPerStation ?? storeParams.slotsPerStation,
   };
 
   const initialTrayLabels = combinedOrders.flatMap((order) =>
@@ -123,15 +112,8 @@ export default function Index() {
     })),
   );
 
-  const componentStyles = activeProject?.componentStyles ?? defaultComponentStyles;
+  const [componentStyles, setComponentStyles] = useState<ComponentStyles>(defaultComponentStyles);
   const [savedStyles, setSavedStyles] = useState<ComponentStyles>(defaultComponentStyles);
-
-  const setComponentStyles = useCallback(
-    (styles: ComponentStyles) => {
-      updateProject(activeId, { componentStyles: styles });
-    },
-    [activeId, updateProject],
-  );
 
   const hasUnsavedChanges = JSON.stringify(componentStyles) !== JSON.stringify(savedStyles);
 
@@ -143,24 +125,21 @@ export default function Index() {
   const handleUndo = useCallback(() => {
     setComponentStyles(savedStyles);
     toast.info("Changes reverted to last saved state");
-  }, [savedStyles, setComponentStyles]);
+  }, [savedStyles]);
 
   const numAisles = Math.max(1, Math.floor(params.rows / 2));
   const totalSlots = params.rows * params.racks * params.slotsPerRack * params.deep;
 
   const handleCombinedExecute = useCallback((payload: CombinedExecutionPayload) => {
-    // Track order start time
     if (payload.orderId != null) {
       activeOrderIdRef.current = payload.orderId;
       orderStartTimeRef.current = Date.now();
     }
-    // Dispatch shuttle orders
     if (payload.shuttleOrders.length > 0) {
       setMovementOrders(payload.shuttleOrders);
       setMovementOrdersKey((k) => k + 1);
       setIsAnimating(true);
     }
-    // Dispatch AMR orders
     if (payload.amrOrders.length > 0) {
       setAmrOrders(payload.amrOrders.map((o) => ({ ...o })));
       setAmrOrdersKey((k) => k + 1);
@@ -186,10 +165,10 @@ export default function Index() {
   }, []);
 
   const handleStationCountChange = useCallback(
-    (count: number) => {
-      updateProject(activeId, { params: { ...params, packingStations: count } });
+    (_count: number) => {
+      // Station count comes from store config, read-only
     },
-    [params, activeId, updateProject],
+    [],
   );
 
   const handleComponentClick = useCallback((type: ComponentType) => {
@@ -202,55 +181,14 @@ export default function Index() {
     setEditingComponent(null);
   }, []);
 
-  const handleCreateProject = useCallback(() => {
-    const name = newProjectName.trim() || `Project ${projects.length + 1}`;
-    addProject(name);
-    setNewProjectOpen(false);
-    setNewProjectName("");
-    setMovementOrders([]);
-    setIsAnimating(false);
-    toast.success(`Created "${name}"`);
-  }, [newProjectName, projects.length, addProject]);
-
   const handleSwitchProject = useCallback(
     (id: string) => {
       switchProject(id);
       setMovementOrders([]);
       setIsAnimating(false);
-      const proj = projects.find((p) => p.id === id);
-      if (proj) setSavedStyles(proj.componentStyles);
     },
-    [switchProject, projects],
+    [switchProject],
   );
-
-  const handleDeleteProject = useCallback(
-    (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (projects.length <= 1) {
-        toast.error("Cannot delete the only project");
-        return;
-      }
-      const proj = projects.find((p) => p.id === id);
-      deleteProject(id);
-      toast.success(`Deleted "${proj?.name}"`);
-    },
-    [projects, deleteProject],
-  );
-
-  const handleOpenRename = useCallback((id: string, currentName: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenameTargetId(id);
-    setRenameValue(currentName);
-    setRenameOpen(true);
-  }, []);
-
-  const handleRename = useCallback(() => {
-    if (renameValue.trim()) {
-      renameProject(renameTargetId, renameValue.trim());
-      toast.success("Project renamed");
-    }
-    setRenameOpen(false);
-  }, [renameTargetId, renameValue, renameProject]);
 
   if (projectsLoading || !activeProject) {
     return (
@@ -345,29 +283,8 @@ export default function Index() {
                     className={`flex items-center justify-between ${p.id === activeId ? "bg-accent/20" : ""}`}
                   >
                     <span className="truncate flex-1">{p.name}</span>
-                    <span className="flex items-center gap-1 shrink-0 ml-2">
-                      <button
-                        onClick={(e) => handleOpenRename(p.id, p.name, e)}
-                        className="p-1 hover:bg-accent rounded"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      {projects.length > 1 && (
-                        <button
-                          onClick={(e) => handleDeleteProject(p.id, e)}
-                          className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setNewProjectOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Project
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -438,52 +355,6 @@ export default function Index() {
         onStyleChange={setComponentStyles}
       />
 
-      {/* New Project Dialog */}
-      <Dialog open={newProjectOpen} onOpenChange={setNewProjectOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Project</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder={`Project ${projects.length + 1}`}
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewProjectOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateProject}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Dialog */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rename Project</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleRename()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRename}>Rename</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

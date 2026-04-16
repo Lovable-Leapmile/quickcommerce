@@ -1925,12 +1925,11 @@ export function Warehouse2D({
     const getAgvPickupLaneMY = (rackRow: number, lane: number): number =>
       findNearestHorizontalPath(getAisleCenterMY(rackRow), lane);
 
-    const getAgvPickupLaneMX = (rackRackIdx: number, lane: number): number => {
+    // Return the rack column X so the AGV picks up right at the rack column
+    // but on a valid horizontal gap path (not inside racks).
+    const getAgvPickupLaneMX = (rackRackIdx: number, _lane: number): number => {
       const rackXPx = startX + rackRackIdx * (slotW + rackGapPx) + slotW / 2;
-      const rackMX = toMX(rackXPx);
-      const leftLaneMX = laneX("left", lane);
-      const rightLaneMX = laneX("right", lane);
-      return Math.abs(rackMX - leftLaneMX) <= Math.abs(rackMX - rightLaneMX) ? leftLaneMX : rightLaneMX;
+      return toMX(rackXPx);
     };
 
     // ====== Intelligent lane selection: evaluate congestion + distance ======

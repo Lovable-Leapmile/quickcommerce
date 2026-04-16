@@ -1,4 +1,4 @@
-const WAREHOUSE_PROXY_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store`;
+const WAREHOUSE_PROXY_URL = import.meta.env.VITE_WAREHOUSE_API_BASE || "/api/warehouse";
 
 type WarehouseEndpoint = "agv" | "orders" | "orders_agv" | "orders_shuttle" | "stores";
 

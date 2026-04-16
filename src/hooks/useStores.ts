@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 export interface StoreItem {
   store_id: number;
@@ -12,7 +13,7 @@ export interface StoreItem {
   height: number;
 }
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?endpoint=stores`;
+const API_URL = buildWarehouseApiUrl({ endpoint: "stores" });
 
 export function useStores() {
   const [stores, setStores] = useState<StoreItem[]>([]);

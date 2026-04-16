@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const responseHeaders = {
+  ...corsHeaders,
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store, max-age=0",
+};
+
 const BASE = "http://sudarshan.leapmile.com:8000";
 
 serve(async (req) => {
@@ -33,17 +39,30 @@ serve(async (req) => {
     }
 
     const res = await fetch(apiUrl, {
-      headers: { accept: "application/json" },
+      headers: {
+        accept: "application/json",
+        "cache-control": "no-cache",
+        pragma: "no-cache",
+      },
     });
+
+    if (!res.ok) {
+      return new Response(JSON.stringify({ error: `Upstream API error: ${res.status}` }), {
+        status: res.status,
+        headers: responseHeaders,
+      });
+    }
+
     const data = await res.json();
+
     return new Response(JSON.stringify(data), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: responseHeaders,
     });
   }
 });

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 export interface AGVInfo {
   agv_id: number;
   agv_name: string;
 }
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?endpoint=agv`;
+const API_URL = buildWarehouseApiUrl({ endpoint: "agv" });
 
 export function useAGVs() {
   const [agvs, setAgvs] = useState<AGVInfo[]>([]);

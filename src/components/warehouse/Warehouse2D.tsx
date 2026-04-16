@@ -2020,6 +2020,15 @@ export function Warehouse2D({
 
     horizontalPathsM.push(pathBottomM);
 
+    // Populate valid lane positions for the AMR loop to clamp lane switches
+    const allValidLaneYs: number[] = [];
+    for (const hpY of horizontalPathsM) {
+      allValidLaneYs.push(hpY - laneOffsetM, hpY + laneOffsetM);
+    }
+    validLaneYsRef.current = allValidLaneYs;
+    const allValidLaneXs: number[] = [pathLeftM - laneOffsetM, pathLeftM + laneOffsetM, pathRightM - laneOffsetM, pathRightM + laneOffsetM];
+    validLaneXsRef.current = allValidLaneXs;
+
     // All AGVs default to lane 0 (Lane A = outer). They only switch to lane 1 (B = inner) dynamically when blocked.
     const getAgvLane = (_agvId: number) => {
       return 0;

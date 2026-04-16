@@ -1426,7 +1426,7 @@ export function Warehouse2D({
 
     // Hoisted declarations for cross-block variable access
     let deliveryWPx = 0, deliveryHPx = 0, deliveryDx = 0, deliveryDy = 0;
-    let stationsX = 0, stationWPx2 = 0;
+    let stationsX = 0, stationWPx2 = 0, stationWPxH = 0;
     let getPackingSlotCenterY = (_s: number, _c: number) => 0;
     const parkingPositions: { px: number; py: number; mx: number; my: number }[] = [];
     let deliveryParkMX = 0, deliveryParkMY = 0;
@@ -1435,6 +1435,7 @@ export function Warehouse2D({
     // ====== Packing Stations: vertical column parallel to AMR path, with gaps ======
     const stationWPx = stationW_m * ppm;
     stationWPx2 = stationWPx;
+    stationWPxH = stationWPx;
     const stationHPx = stationH_m * ppm;
     const stationGapPx = stationGap_m * ppm;
     const totalStationsH = stations * stationHPx + (stations - 1) * stationGapPx;
@@ -2423,7 +2424,7 @@ export function Warehouse2D({
               return 0;
             })();
         const destSy = getPackingSlotCenterY(destStationIdx, destSlotIdx);
-        const destSx = stationsX + stationWPx;
+        const destSx = stationsX + stationWPxH;
         const destMX = toMX(destSx);
         const destMY = toMY(destSy);
 
@@ -2500,7 +2501,7 @@ export function Warehouse2D({
         const srcStationIdx = (order.sourceStation || 1) - 1;
         const centerSlotIdx = Math.floor(packingSlotsPerStation / 2);
         const srcSy = getPackingSlotCenterY(srcStationIdx, centerSlotIdx);
-        const srcSx = stationsX + stationWPx;
+        const srcSx = stationsX + stationWPxH;
         const srcMX = toMX(srcSx);
         const srcMY = toMY(srcSy);
 

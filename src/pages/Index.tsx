@@ -118,15 +118,8 @@ export default function Index() {
     })),
   );
 
-  const componentStyles = activeProject?.componentStyles ?? defaultComponentStyles;
+  const [componentStyles, setComponentStyles] = useState<ComponentStyles>(defaultComponentStyles);
   const [savedStyles, setSavedStyles] = useState<ComponentStyles>(defaultComponentStyles);
-
-  const setComponentStyles = useCallback(
-    (styles: ComponentStyles) => {
-      updateProject(activeId, { componentStyles: styles });
-    },
-    [activeId, updateProject],
-  );
 
   const hasUnsavedChanges = JSON.stringify(componentStyles) !== JSON.stringify(savedStyles);
 
@@ -138,24 +131,21 @@ export default function Index() {
   const handleUndo = useCallback(() => {
     setComponentStyles(savedStyles);
     toast.info("Changes reverted to last saved state");
-  }, [savedStyles, setComponentStyles]);
+  }, [savedStyles]);
 
   const numAisles = Math.max(1, Math.floor(params.rows / 2));
   const totalSlots = params.rows * params.racks * params.slotsPerRack * params.deep;
 
   const handleCombinedExecute = useCallback((payload: CombinedExecutionPayload) => {
-    // Track order start time
     if (payload.orderId != null) {
       activeOrderIdRef.current = payload.orderId;
       orderStartTimeRef.current = Date.now();
     }
-    // Dispatch shuttle orders
     if (payload.shuttleOrders.length > 0) {
       setMovementOrders(payload.shuttleOrders);
       setMovementOrdersKey((k) => k + 1);
       setIsAnimating(true);
     }
-    // Dispatch AMR orders
     if (payload.amrOrders.length > 0) {
       setAmrOrders(payload.amrOrders.map((o) => ({ ...o })));
       setAmrOrdersKey((k) => k + 1);
@@ -181,10 +171,10 @@ export default function Index() {
   }, []);
 
   const handleStationCountChange = useCallback(
-    (count: number) => {
-      updateProject(activeId, { params: { ...params, packingStations: count } });
+    (_count: number) => {
+      // Station count comes from store config, read-only
     },
-    [params, activeId, updateProject],
+    [],
   );
 
   const handleComponentClick = useCallback((type: ComponentType) => {
@@ -197,55 +187,14 @@ export default function Index() {
     setEditingComponent(null);
   }, []);
 
-  const handleCreateProject = useCallback(() => {
-    const name = newProjectName.trim() || `Project ${projects.length + 1}`;
-    addProject(name);
-    setNewProjectOpen(false);
-    setNewProjectName("");
-    setMovementOrders([]);
-    setIsAnimating(false);
-    toast.success(`Created "${name}"`);
-  }, [newProjectName, projects.length, addProject]);
-
   const handleSwitchProject = useCallback(
     (id: string) => {
       switchProject(id);
       setMovementOrders([]);
       setIsAnimating(false);
-      const proj = projects.find((p) => p.id === id);
-      if (proj) setSavedStyles(proj.componentStyles);
     },
-    [switchProject, projects],
+    [switchProject],
   );
-
-  const handleDeleteProject = useCallback(
-    (id: string, e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (projects.length <= 1) {
-        toast.error("Cannot delete the only project");
-        return;
-      }
-      const proj = projects.find((p) => p.id === id);
-      deleteProject(id);
-      toast.success(`Deleted "${proj?.name}"`);
-    },
-    [projects, deleteProject],
-  );
-
-  const handleOpenRename = useCallback((id: string, currentName: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenameTargetId(id);
-    setRenameValue(currentName);
-    setRenameOpen(true);
-  }, []);
-
-  const handleRename = useCallback(() => {
-    if (renameValue.trim()) {
-      renameProject(renameTargetId, renameValue.trim());
-      toast.success("Project renamed");
-    }
-    setRenameOpen(false);
-  }, [renameTargetId, renameValue, renameProject]);
 
   if (projectsLoading || !activeProject) {
     return (

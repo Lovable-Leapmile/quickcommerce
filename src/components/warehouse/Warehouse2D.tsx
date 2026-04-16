@@ -2503,12 +2503,14 @@ export function Warehouse2D({
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         }
 
-        // ---- Station waypoints: station → optimal lane → top path → delivery branch → delivery slot ----
+        // ---- Station waypoints: station → left vertical lane → top path → delivery branch → delivery slot ----
         const stWps: { mx: number; my: number }[] = [];
+        const leftLaneMXLocal = laneX("left", agvLaneLocal);
         appendWaypoint(stWps, { mx: srcMX, my: srcMY });
-        appendWaypoint(stWps, { mx: srcMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: stationBranchMY });
-        appendWaypoint(stWps, { mx: optimalDeliveryLaneMX, my: topPathMY });
+        // Go horizontally from station to left vertical lane (station branch)
+        appendWaypoint(stWps, { mx: leftLaneMXLocal, my: srcMY });
+        // Go vertically on left lane to top path
+        appendWaypoint(stWps, { mx: leftLaneMXLocal, my: topPathMY });
         // Go horizontally on top path to delivery branch X
         appendWaypoint(stWps, { mx: destMX, my: topPathMY });
         // Go vertically up on delivery branch to delivery slot

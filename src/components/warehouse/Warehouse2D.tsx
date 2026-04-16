@@ -2375,7 +2375,7 @@ export function Warehouse2D({
         const destMY = destSlotPos.my;
 
         const leftLaneMX = laneX("left", agvLaneLocal);
-        const topPathMY = deliveryBranchPathMY;
+        const topPathMY = pathTopM - laneOffsetM;
 
         // Intelligent lane selection for delivery flow
         const optimalDeliveryLane = pickOptimalLane(agvId, srcMX, srcMY, destMX, topPathMY, agvLaneLocal);

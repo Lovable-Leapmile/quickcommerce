@@ -29,7 +29,14 @@ export function useStores() {
         });
         if (!res.ok) throw new Error(`API error: ${res.status}`);
         const data = await res.json();
-        setStores(data.items ?? []);
+        // Handle both list format {items:[...]} and single store object
+        if (Array.isArray(data.items)) {
+          setStores(data.items);
+        } else if (data.store_id) {
+          setStores([data]);
+        } else {
+          setStores([]);
+        }
       } catch (err: any) {
         console.error("Failed to fetch stores:", err);
         setError(err.message);

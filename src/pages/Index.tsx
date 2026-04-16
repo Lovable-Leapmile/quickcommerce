@@ -361,52 +361,6 @@ export default function Index() {
         onStyleChange={setComponentStyles}
       />
 
-      {/* New Project Dialog */}
-      <Dialog open={newProjectOpen} onOpenChange={setNewProjectOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>New Project</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              placeholder={`Project ${projects.length + 1}`}
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleCreateProject()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewProjectOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateProject}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename Dialog */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Rename Project</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleRename()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRename}>Rename</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

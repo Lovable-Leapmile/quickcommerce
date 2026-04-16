@@ -1706,6 +1706,7 @@ export function Warehouse2D({
     const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
     const deliveryParkMY = (delParkCenterY - startY) / ppm;
 
+    let currentY = startY;
 
     for (let a = 0; a < numAisles; a++) {
       const aisleTopY = currentY + deep * slotD;

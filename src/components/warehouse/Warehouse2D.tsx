@@ -224,6 +224,9 @@ export function Warehouse2D({
 
   // Track filled delivery slots
   const filledDeliverySlotsRef = useRef<Set<number>>(new Set());
+  // Valid lane Y positions for horizontal paths and X positions for vertical paths (populated in drawCanvas)
+  const validLaneYsRef = useRef<number[]>([]);
+  const validLaneXsRef = useRef<number[]>([]);
 
   // Track pending delivery dispatch for auto-delivery AGV
   const pendingDeliveryRef = useRef<number[]>([]);

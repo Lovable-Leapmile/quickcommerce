@@ -2323,41 +2323,44 @@ export function Warehouse2D({
         const pickupExactMY = toMY(trayCenterYPx);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
-        const reservePackingSlot = (stationIdx: number) => {
-          const centerIdx = Math.floor(packingSlotsPerStation / 2);
-          const availableNonAdjacent: number[] = [];
-          const availableAny: number[] = [];
+        // Use the specific slot from the order's packing_location if provided
+        const destSlotIdx = order.destSlot != null && order.destSlot > 0
+          ? Math.min(order.destSlot - 1, packingSlotsPerStation - 1)
+          : (() => {
+              // Fallback: reserve any available slot (legacy behavior)
+              const centerIdx = Math.floor(packingSlotsPerStation / 2);
+              const availableNonAdjacent: number[] = [];
+              const availableAny: number[] = [];
 
-          const isOccupied = (idx: number) => {
-            const key = `${stationIdx}-${idx}`;
-            return filledPackingSlotsRef.current.has(key) || reservedPackingSlotsRef.current.has(key);
-          };
+              const isOccupied = (idx: number) => {
+                const key = `${destStationIdx}-${idx}`;
+                return filledPackingSlotsRef.current.has(key) || reservedPackingSlotsRef.current.has(key);
+              };
 
-          for (let idx = 0; idx < packingSlotsPerStation; idx++) {
-            if (idx === centerIdx) continue;
-            if (isOccupied(idx)) continue;
-            availableAny.push(idx);
-            const leftBlocked = idx - 1 >= 0 && isOccupied(idx - 1);
-            const rightBlocked = idx + 1 < packingSlotsPerStation && isOccupied(idx + 1);
-            if (!leftBlocked && !rightBlocked) availableNonAdjacent.push(idx);
-          }
+              for (let idx = 0; idx < packingSlotsPerStation; idx++) {
+                if (idx === centerIdx) continue;
+                if (isOccupied(idx)) continue;
+                availableAny.push(idx);
+                const leftBlocked = idx - 1 >= 0 && isOccupied(idx - 1);
+                const rightBlocked = idx + 1 < packingSlotsPerStation && isOccupied(idx + 1);
+                if (!leftBlocked && !rightBlocked) availableNonAdjacent.push(idx);
+              }
 
-          const pick = (list: number[]) => list[Math.floor(Math.random() * list.length)];
-          const chosen =
-            availableNonAdjacent.length > 0
-              ? pick(availableNonAdjacent)
-              : availableAny.length > 0
-                ? pick(availableAny)
-                : -1;
+              const pick = (list: number[]) => list[Math.floor(Math.random() * list.length)];
+              const chosen =
+                availableNonAdjacent.length > 0
+                  ? pick(availableNonAdjacent)
+                  : availableAny.length > 0
+                    ? pick(availableAny)
+                    : -1;
 
-          if (chosen >= 0) {
-            reservedPackingSlotsRef.current.add(`${stationIdx}-${chosen}`);
-            return chosen;
-          }
+              if (chosen >= 0) {
+                reservedPackingSlotsRef.current.add(`${destStationIdx}-${chosen}`);
+                return chosen;
+              }
 
-          return 0;
-        };
-        const destSlotIdx = reservePackingSlot(destStationIdx);
+              return 0;
+            })();
         const destSy = getPackingSlotCenterY(destStationIdx, destSlotIdx);
         const destSx = stationsX + stationWPx;
         const destMX = toMX(destSx);

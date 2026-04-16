@@ -2383,9 +2383,11 @@ export function Warehouse2D({
             ? { kind: "station-branch" }
             : amrSt.currentSegmentKind === "left-vertical"
               ? { kind: "left-vertical" }
-              : amrSt.currentSegmentKind === "horizontal"
-                ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
-                : { kind: "right-vertical" };
+              : amrSt.currentSegmentKind === "delivery-branch"
+                ? { kind: "delivery-branch" }
+                : amrSt.currentSegmentKind === "horizontal"
+                  ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
+                  : { kind: "right-vertical" };
 
         // Build source waypoints: travel strictly on AMR paths to the exact pickup column.
         const srcWps = buildRouteToPoint(curMX, curMY, curSegment, pickupMX, pickupLaneMY, agvLaneLocal);

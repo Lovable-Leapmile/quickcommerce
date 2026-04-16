@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { WarehouseParams } from "@/components/warehouse/WarehouseConfig";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 const defaultParams: WarehouseParams = {
   rows: 2,
@@ -21,7 +22,7 @@ export function useStoreParams(storeId: number = 1) {
       try {
         setLoading(true);
         setError(null);
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?id=${storeId}`;
+        const url = buildWarehouseApiUrl({ id: storeId });
         const res = await fetch(url, {
           headers: { accept: "application/json" },
         });

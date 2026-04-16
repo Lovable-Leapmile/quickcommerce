@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 export interface AGVOrder {
   order_id: number;
@@ -28,7 +29,7 @@ function detectFlowType(from_location: string): AGVFlowType {
   return from_location.includes("-") ? "rack-to-station" : "station-to-delivery";
 }
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?endpoint=orders_agv`;
+const API_URL = buildWarehouseApiUrl({ endpoint: "orders_agv" });
 
 export function useAGVOrders() {
   const [orders, setOrders] = useState<ParsedAGVOrder[]>([]);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 export interface ShuttleOrder {
   order_id: number;
@@ -28,7 +29,7 @@ function parseLocation(loc: string): { row: number; rack: number; deep: number; 
   };
 }
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?endpoint=orders_shuttle`;
+const API_URL = buildWarehouseApiUrl({ endpoint: "orders_shuttle" });
 
 export function useShuttleOrders() {
   const [orders, setOrders] = useState<ParsedShuttleOrder[]>([]);

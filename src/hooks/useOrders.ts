@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { buildWarehouseApiUrl } from "@/lib/warehouseApi";
 
 export interface OrderItem {
   from_location: string; // "row-rack-deep-slot"
@@ -52,7 +53,7 @@ function parsePackingLoc(loc: string) {
   };
 }
 
-const API_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-store?endpoint=orders`;
+const API_URL = buildWarehouseApiUrl({ endpoint: "orders" });
 
 export function useOrders() {
   const [orders, setOrders] = useState<ParsedOrder[]>([]);

@@ -729,11 +729,35 @@ export function Warehouse2D({
             return { arrived: false, newIdx: wpIdx };
           }
 
-          // LANE SWITCH: instead of arbitrary perpendicular detour, just wait longer.
-          // The dual-lane system (odd/even AGV index) already separates most traffic.
-          // Off-path detours are disabled to prevent AGVs from leaving valid lanes.
+          // LANE SWITCH: deterministic perpendicular lane shift for congestion release.
+          if (shouldSwitch && st.stoppedTimer > LANE_SWITCH_WAIT) {
+            const blocker = positions.find((p) => p.id === blockerId);
+            const isHorizontalMove = Math.abs(dx) >= Math.abs(dy);
+            if (isHorizontalMove) {
+              // Move to adjacent horizontal lane line (± lane gap)
+              const switchDir = blocker && blocker.my >= st.my ? -1 : 1;
+              const switchedY = st.my + switchDir * LANE_GAP_M;
+              if (Math.abs(switchedY - st.my) > 0.01) {
+                waypoints.splice(wpIdx, 0, { mx: st.mx, my: switchedY });
+                st.stopped = false;
+                st.stoppedTimer = 0;
+                return { arrived: false, newIdx: wpIdx };
+              }
+            } else {
+              // Move to adjacent vertical lane line (± lane gap)
+              const switchDir = blocker && blocker.mx >= st.mx ? -1 : 1;
+              const switchedX = st.mx + switchDir * LANE_GAP_M;
+              if (Math.abs(switchedX - st.mx) > 0.01) {
+                waypoints.splice(wpIdx, 0, { mx: switchedX, my: st.my });
+                st.stopped = false;
+                st.stoppedTimer = 0;
+                return { arrived: false, newIdx: wpIdx };
+              }
+            }
+          }
+
           if (st.stoppedTimer > LANE_SWITCH_WAIT * 3) {
-            // After extended wait, try backing up to previous waypoint to let blocker pass
+            // Fallback: back up to previous waypoint to clear jams
             const prevWp = wpIdx > 0 ? waypoints[wpIdx - 1] : null;
             if (prevWp) {
               waypoints.splice(wpIdx, 0, { mx: prevWp.mx, my: prevWp.my });
@@ -772,6 +796,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.sourceWaypoints, st.sourceWpIdx, delta);
           st.sourceWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "rack-to-station" ? "horizontal" : "station-branch";
             st.phase = "pickup";
             st.pickupTimer = 0;
           }
@@ -815,6 +840,7 @@ export function Warehouse2D({
             if (carriedItemIndex && st.order && st.order.itemIndex !== carriedItemIndex) {
               st.order = { ...st.order, itemIndex: carriedItemIndex };
             }
+            st.currentSegmentKind = st.order?.flowType === "rack-to-station" ? "horizontal" : "station-branch";
             st.phase = "to_station";
           }
         } else if (st.phase === "to_station") {
@@ -822,6 +848,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.stationWaypoints, st.stationWpIdx, delta);
           st.stationWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "delivery-branch" : "station-branch";
             st.phase = "dropoff";
             st.dropoffTimer = 0;
           }
@@ -903,6 +930,7 @@ export function Warehouse2D({
           const { arrived, newIdx } = moveAlongWaypoints(st, agvId, st.returnWaypoints, st.returnWpIdx, delta);
           st.returnWpIdx = newIdx;
           if (arrived) {
+            st.currentSegmentKind = st.order?.flowType === "station-to-delivery" ? "station-branch" : "right-vertical";
             if (st.orderQueue.length > 0) {
               const nextOrder = st.orderQueue.shift()!;
               st.order = nextOrder;
@@ -1916,14 +1944,15 @@ export function Warehouse2D({
       return best;
     };
 
-    const getAisleCenterMY = (rackRow: number): number => {
+    const getAgvPickupLaneMY = (rackRow: number, lane: number): number => {
       const { aisleIdx } = rowToAisleSide(rackRow);
-      const aisleTopPx = startY + aisleYOffset(aisleIdx, numAisles, aisleGroupH) * ppm + deep * slotD;
-      return toMY(aisleTopPx + aisleH / 2);
+      const pairIdx = Math.floor(aisleIdx / 2);
+      // Stay strictly on AMR horizontal paths: top-of-pair for upper aisle, bottom-of-pair for lower aisle.
+      const upperPath = horizontalPathsM[Math.min(pairIdx, horizontalPathsM.length - 1)] ?? pathTopM;
+      const lowerPath = horizontalPathsM[Math.min(pairIdx + 1, horizontalPathsM.length - 1)] ?? pathBottomM;
+      const pathY = aisleIdx % 2 === 0 ? upperPath : lowerPath;
+      return laneY(pathY, lane);
     };
-
-    const getAgvPickupLaneMY = (rackRow: number, lane: number): number =>
-      findNearestHorizontalPath(getAisleCenterMY(rackRow), lane);
 
     // Return the rack column X so the AGV picks up right at the rack column
     // but on a valid horizontal gap path (not inside racks).
@@ -1944,6 +1973,13 @@ export function Warehouse2D({
         }
       });
       return count;
+    };
+
+    const pickLeastCongestedLane = (agvId: number, fallbackLane: number): number => {
+      const lane0Load = countAgvsOnLane(laneX("left", 0), agvId) + countAgvsOnLane(laneX("right", 0), agvId);
+      const lane1Load = countAgvsOnLane(laneX("left", 1), agvId) + countAgvsOnLane(laneX("right", 1), agvId);
+      if (lane0Load === lane1Load) return fallbackLane;
+      return lane0Load < lane1Load ? 0 : 1;
     };
 
     // Pick the optimal vertical lane (left or right) based on distance + congestion
@@ -2089,9 +2125,6 @@ export function Warehouse2D({
 
       const idlePlacement = computeIdlePlacement(agvId);
 
-      // Determine the AGV's actual current segment based on where it is
-      const isFromParking = amrSt.mx === 0 && amrSt.my === 0 || amrSt.currentSegmentKind === "right-vertical";
-
       if (amrSt.mx === 0 && amrSt.my === 0) {
         amrSt.mx = idlePlacement.mx;
         amrSt.my = idlePlacement.my;
@@ -2132,17 +2165,14 @@ export function Warehouse2D({
         amrSt.stationWpIdx = 1;
         amrSt.returnWpIdx = 1;
       } else if (order.flowType === "rack-to-station") {
-        // ====== Shuttle target slot → AGV travels to aisle center to pick tray → packing station ======
-        const agvLaneLocal = getAgvLane(agvId);
+        // ====== Shuttle target slot → AGV picks directly on AMR handoff lane at target column ======
+        const agvLaneLocal = pickLeastCongestedLane(agvId, getAgvLane(agvId));
 
         const rackRow = order.rackRow ?? 1;
         const rackRack = (order.rackRack ?? 1) - 1;
-        const rackDeep = order.rackDeep ?? 1;
         const pickupMX = getAgvPickupLaneMX(rackRack, agvLaneLocal);
-        // The nearest horizontal AMR path to approach the aisle
+        // Handoff is on the AMR horizontal path mapped to this aisle pair (never inside storage aisles).
         const pickupPathMY = getAgvPickupLaneMY(rackRow, agvLaneLocal);
-        // The actual aisle center where the shuttle drops the tray — AGV goes here to pick up
-        const aisleCenterMY = getAisleCenterMY(rackRow);
 
         const destStationIdx = Math.min(Math.max((order.destStation ?? 1) - 1, 0), stations - 1);
         const reservePackingSlot = (stationIdx: number) => {
@@ -2189,37 +2219,27 @@ export function Warehouse2D({
         const rightLaneMX = laneX("right", agvLaneLocal);
         const stationBranchMY = destMY;
         
-        // Determine current segment based on AGV's actual position
-        let curSegment: IdleSegment;
-        if (amrSt.currentSegmentKind === "station-branch") {
-          curSegment = { kind: "station-branch" };
-        } else if (isFromParking) {
-          curSegment = idlePlacement.segment;
-        } else {
-          curSegment = idlePlacement.segment;
-        }
+        const curSegment: IdleSegment =
+          amrSt.currentSegmentKind === "station-branch"
+            ? { kind: "station-branch" }
+            : amrSt.currentSegmentKind === "left-vertical"
+              ? { kind: "left-vertical" }
+              : amrSt.currentSegmentKind === "horizontal"
+                ? { kind: "horizontal", pathY: findNearestHorizontalPath(curMY, agvLaneLocal) }
+                : { kind: "right-vertical" };
 
-        // Build source waypoints: travel on AMR paths to the pickup column,
-        // then go into the aisle center to pick up the tray (under it).
+        // Build source waypoints: travel strictly on AMR paths to the exact pickup column.
         const srcWps = buildRouteToPoint(curMX, curMY, curSegment, pickupMX, pickupPathMY, agvLaneLocal);
-        // Final step: move from horizontal AMR path into the aisle center to be under the tray
-        appendWaypoint(srcWps, { mx: pickupMX, my: aisleCenterMY });
 
         // Intelligent lane selection for rack → station path
         const optimalToStation = pickOptimalLane(agvId, pickupMX, pickupPathMY, destMX, stationBranchMY, agvLaneLocal);
         const optimalStationLaneMX = laneX(optimalToStation, agvLaneLocal);
 
-        // Station waypoints: return from aisle center back to AMR horizontal path first,
-        // then travel on AMR lanes to packing station.
+        // Station waypoints: continue from pickup lane to packing station strictly on AMR lanes.
         const stWps: { mx: number; my: number }[] = [];
-        appendWaypoint(stWps, { mx: pickupMX, my: aisleCenterMY });
-        // Return to the horizontal AMR path (exit the aisle)
         appendWaypoint(stWps, { mx: pickupMX, my: pickupPathMY });
-        // Travel on AMR path to vertical lane
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: pickupPathMY });
-        // Vertical lane to station branch
         appendWaypoint(stWps, { mx: optimalStationLaneMX, my: stationBranchMY });
-        // Horizontal to station
         appendWaypoint(stWps, { mx: destMX, my: stationBranchMY });
         appendWaypoint(stWps, { mx: destMX, my: destMY });
 
@@ -2256,7 +2276,7 @@ export function Warehouse2D({
         amrSt.currentSegmentKind = "station-branch";
       } else {
         // ====== NEW FLOW: packing station → delivery area ======
-        const agvLaneLocal = getAgvLane(agvId);
+        const agvLaneLocal = pickLeastCongestedLane(agvId, getAgvLane(agvId));
         amrSt.targetPackingStationIdx = -1;
         amrSt.targetPackingSlotIdx = -1;
 

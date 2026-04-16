@@ -2280,6 +2280,19 @@ export function Warehouse2D({
         amrSt.mx = idlePlacement.mx;
         amrSt.my = idlePlacement.my;
       }
+      const isUnsetPosition = Math.abs(amrSt.mx) < 0.001 && Math.abs(amrSt.my) < 0.001;
+      const isIdleOrDone = amrSt.phase === "idle" || amrSt.phase === "done";
+      if (
+        !amrSt.initialized ||
+        isUnsetPosition ||
+        (agvId === deliveryAgvId && isIdleOrDone && amrSt.currentSegmentKind !== idlePlacement.segment.kind)
+      ) {
+        amrSt.mx = idlePlacement.mx;
+        amrSt.my = idlePlacement.my;
+        amrSt.currentSegmentKind = idlePlacement.segment.kind;
+        amrSt.initialized = true;
+      }
+
       const curMX = amrSt.mx;
       const curMY = amrSt.my;
 
@@ -2482,9 +2495,6 @@ export function Warehouse2D({
         const topPathMY = pathTopM - laneOffsetM;
 
         // Intelligent lane selection for delivery flow
-        const optimalDeliveryLane = pickOptimalLane(agvId, srcMX, srcMY, destMX, topPathMY, agvLaneLocal);
-        const optimalDeliveryLaneMX = laneX(optimalDeliveryLane, agvLaneLocal);
-
         // ---- Source waypoints: delivery AGV is already at packing station ----
         const srcWps: { mx: number; my: number }[] = [];
         const stationBranchMY = srcMY; // Define stationBranchMY in proper scope
@@ -2498,18 +2508,17 @@ export function Warehouse2D({
           // Delivery AGV is already at the correct order-bin slot, so pick up immediately.
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });
         } else {
-          // Other AGVs: current position to packing station
+          // Force the delivery AGV to leave/enter the AMR loop only via the connector branch.
           appendWaypoint(srcWps, { mx: curMX, my: curMY });
-          
-          // Pick optimal lane for reaching the packing station
-          const optimalSrcLane = pickOptimalLane(agvId, curMX, curMY, srcMX, srcMY, agvLaneLocal);
-          const optimalSrcLaneMX = laneX(optimalSrcLane, agvLaneLocal);
 
-          if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
-            // From delivery parking/slot: go along connector branch to top AMR path
+          if (agvId === deliveryAgvId) {
+            // From delivery parking or a delivery slot: first align to the connector, then enter the top AMR path.
             appendWaypoint(srcWps, { mx: deliveryParkingMX, my: curMY });
             appendWaypoint(srcWps, { mx: deliveryParkingMX, my: topPathMY });
-            // Go horizontally on top path to left vertical lane (stations are on the left)
+            appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
+          } else if (amrSt.currentSegmentKind === "delivery-branch" || !amrSt.initialized) {
+            appendWaypoint(srcWps, { mx: deliveryParkingMX, my: curMY });
+            appendWaypoint(srcWps, { mx: deliveryParkingMX, my: topPathMY });
             appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =

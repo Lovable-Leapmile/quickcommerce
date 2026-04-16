@@ -20,11 +20,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Save,
@@ -32,9 +29,6 @@ import {
   Move,
   ChevronDown,
   ChevronRight,
-  Plus,
-  Trash2,
-  Pencil,
   Loader2,
   Warehouse,
   PanelLeftClose,

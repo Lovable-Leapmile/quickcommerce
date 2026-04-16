@@ -698,7 +698,7 @@ export function Warehouse2D({
         for (const other of positions) {
           if (other.id === agvId) continue;
           const d = Math.sqrt((other.mx - mx) ** 2 + (other.my - my) ** 2);
-          if (d < STOP_DIST) return false;
+          if (d < MIN_GAP * 2) return false; // Only block if very close (0.6m), not full STOP_DIST
         }
         return true;
       };

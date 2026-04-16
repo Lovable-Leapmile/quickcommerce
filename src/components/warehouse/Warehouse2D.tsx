@@ -21,6 +21,8 @@ interface Warehouse2DProps {
   onDeliveryComplete?: () => void;
   agvs: AGVInfo[];
   amrSpeed?: number;
+  showAGVSystem?: boolean;
+  gapBetweenPairs?: number;
 }
 
 const PACKING_STATIONS_COUNT = 3;
@@ -30,7 +32,7 @@ const SHUTTLE_DROP_HOLD_S = 0.32;
 const SLOT_W_M = 0.4;
 const SLOT_D_M = 0.6;
 const AISLE_W_M = 0.5;
-const GAP_BETWEEN_PAIRS = 1.2;
+const DEFAULT_GAP_BETWEEN_PAIRS = 1.2;
 const AMR_PATH_WIDTH_M = 0.5;
 const PATH_MARGIN_M = 0.6; // gap between warehouse and AMR path
 const LANE_GAP_M = 0.6; // distance between the two lane center lines (wider for better collision avoidance)
@@ -40,15 +42,15 @@ const PARKING_SPOT_H_M = 0.6; // height of each parking spot
 const PARKING_GAP_M = 0.6; // gap between parking spots
 const PARKING_MARGIN_M = 0.8; // gap between right AMR path and parking area
 
-function aisleYOffset(a: number, numAisles: number, aisleGroupH: number): number {
+function aisleYOffset(a: number, numAisles: number, aisleGroupH: number, gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS): number {
   const pairIdx = Math.floor(a / 2);
   const withinPair = a % 2;
-  return pairIdx * (2 * aisleGroupH + GAP_BETWEEN_PAIRS) + withinPair * aisleGroupH;
+  return pairIdx * (2 * aisleGroupH + gapBetweenPairs) + withinPair * aisleGroupH;
 }
 
-function totalAisleSpan(numAisles: number, aisleGroupH: number): number {
+function totalAisleSpan(numAisles: number, aisleGroupH: number, gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS): number {
   if (numAisles <= 0) return 0;
-  const lastOffset = aisleYOffset(numAisles - 1, numAisles, aisleGroupH);
+  const lastOffset = aisleYOffset(numAisles - 1, numAisles, aisleGroupH, gapBetweenPairs);
   return lastOffset + aisleGroupH;
 }
 
@@ -115,6 +117,8 @@ export function Warehouse2D({
   onDeliveryComplete,
   agvs,
   amrSpeed: amrSpeedProp = 0.5,
+  showAGVSystem = true,
+  gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS,
 }: Warehouse2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

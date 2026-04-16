@@ -1355,7 +1355,6 @@ export function Warehouse2D({
     const shuttleColor = componentStyles.shuttle.color;
     const railColor = componentStyles.rail.color;
 
-    if (showAGVSystem) {
     // ====== AMR Path (dual-lane narrow lines) ======
     const pathCenterLeft = startX - pathMargin_m * ppm - amrPathWPx / 2;
     const pathCenterRight = startX + layoutW + pathMargin_m * ppm + amrPathWPx / 2;
@@ -1420,10 +1419,8 @@ export function Warehouse2D({
         drawDualLane(pathCenterLeft, gapCenterY, pathCenterRight, gapCenterY, true);
       }
     }
-    } // end AMR paths
 
 
-    if (showAGVSystem) {
     // ====== Packing Stations: vertical column parallel to AMR path, with gaps ======
     const stationWPx = stationW_m * ppm;
     const stationHPx = stationH_m * ppm;
@@ -1587,10 +1584,8 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     drawReadableText("Packing Area", stationsX - 12, stationsStartY + totalStationsH / 2, -Math.PI / 2);
-    } // end packing stations
 
 
-    if (showAGVSystem) {
     // ====== Single Delivery Station at top near x=5m, y=2m ======
     const deliveryWPx = deliveryW_m * ppm;
     const deliveryHPx = deliveryH_m * ppm;
@@ -1667,11 +1662,9 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
-    } // end delivery station
 
 
 
-    if (showAGVSystem) {
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;
     const parkingSpotHPx = PARKING_SPOT_H_M * ppm;
@@ -1789,7 +1782,6 @@ export function Warehouse2D({
     // Delivery parking position in meters
     const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
     const deliveryParkMY = (delParkCenterY - startY) / ppm;
-    } // end parking
 
 
     let currentY = startY;
@@ -2014,7 +2006,6 @@ export function Warehouse2D({
     const toMX = (px: number) => (px - startX) / ppm;
     const toMY = (py: number) => (py - startY) / ppm;
 
-    if (showAGVSystem) {
     // ====== Initialize idle positions for all AGVs in the map ======
     for (const agv of agvList) {
       if (!amrAnimMapRef.current.has(agv.agv_id)) {
@@ -2763,7 +2754,6 @@ export function Warehouse2D({
       ctx.fillText(label, 0, lblBgY + lblBgH / 2);
       ctx.restore();
     }
-    } // end AGV system
 
 
     // Store grid info for click handler

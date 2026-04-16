@@ -289,29 +289,8 @@ export default function Index() {
                     className={`flex items-center justify-between ${p.id === activeId ? "bg-accent/20" : ""}`}
                   >
                     <span className="truncate flex-1">{p.name}</span>
-                    <span className="flex items-center gap-1 shrink-0 ml-2">
-                      <button
-                        onClick={(e) => handleOpenRename(p.id, p.name, e)}
-                        className="p-1 hover:bg-accent rounded"
-                      >
-                        <Pencil className="w-3 h-3" />
-                      </button>
-                      {projects.length > 1 && (
-                        <button
-                          onClick={(e) => handleDeleteProject(p.id, e)}
-                          className="p-1 hover:bg-destructive/20 rounded text-destructive"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </span>
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setNewProjectOpen(true)}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Project
-                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 

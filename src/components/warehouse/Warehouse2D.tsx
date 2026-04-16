@@ -881,6 +881,20 @@ export function Warehouse2D({
             st.pickupTimer = 0;
           }
         } else if (st.phase === "pickup") {
+          // For rack-to-station: wait until shuttle has dropped the tray at the source rack slot
+          if (st.order?.flowType === "rack-to-station") {
+            const rackRow = st.order.rackRow ?? 1;
+            const rackRack = st.order.rackRack ?? 1;
+            const rackDeep = st.order.rackDeep ?? 1;
+            const rackSlot = st.order.rackSlot ?? 1;
+            const { aisleIdx } = rowToAisleSide(rackRow);
+            const deepOffset = getDeepOffset({ row: rackRow, rack: rackRack, deep: rackDeep, slot: rackSlot });
+            const rackKey = `${aisleIdx}-${rackRack - 1}-${deepOffset}`;
+            if (!trayItemLabelsRef.current.has(rackKey)) {
+              // Tray not yet placed by shuttle — keep waiting, don't advance pickup timer
+              return;
+            }
+          }
           st.pickupTimer += delta;
           if (st.pickupTimer >= PICKUP_DURATION) {
             let carriedItemIndex = st.carriedItemIndex || st.order?.itemIndex || 0;

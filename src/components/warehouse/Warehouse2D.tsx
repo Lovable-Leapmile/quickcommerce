@@ -2043,7 +2043,7 @@ export function Warehouse2D({
     const nearlySamePoint = (a: { mx: number; my: number }, b: { mx: number; my: number }) =>
       Math.abs(a.mx - b.mx) < 0.001 && Math.abs(a.my - b.my) < 0.001;
 
-    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number } | { kind: "station-branch" };
+    type IdleSegment = { kind: "left-vertical" } | { kind: "right-vertical" } | { kind: "horizontal"; pathY: number } | { kind: "station-branch" } | { kind: "delivery-branch" };
 
     type IdlePlacement = {
       mx: number;

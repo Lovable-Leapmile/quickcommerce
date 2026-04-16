@@ -2523,13 +2523,11 @@ export function Warehouse2D({
         appendWaypoint(returnWps, { mx: destMX, my: destMY });
         
         if (agvId === deliveryAgvId) {
-          // Intelligent lane selection for return to packing station
-          const optimalReturnLane = pickOptimalLane(agvId, destMX, destMY, srcMX, srcMY, agvLaneLocal);
-          const optimalReturnLaneMX = laneX(optimalReturnLane, agvLaneLocal);
-          // Delivery AGV returns to its dedicated parking near delivery area.
+          // Delivery AGV returns via AMR path to connector branch, then down to parking
           appendWaypoint(returnWps, { mx: destMX, my: topPathMY });
-          appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: topPathMY });
-          appendWaypoint(returnWps, { mx: optimalReturnLaneMX, my: deliveryParkingMY });
+          // Travel on top path to connector branch X
+          appendWaypoint(returnWps, { mx: deliveryParkingMX, my: topPathMY });
+          // Go down connector branch to parking
           appendWaypoint(returnWps, { mx: deliveryParkingMX, my: deliveryParkingMY });
         } else {
           // Other AGVs stay at delivery slot

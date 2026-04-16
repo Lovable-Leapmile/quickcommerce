@@ -1424,14 +1424,22 @@ export function Warehouse2D({
 
 
 
+    // Hoisted declarations for cross-block variable access
+    let deliveryWPx = 0, deliveryHPx = 0, deliveryDx = 0, deliveryDy = 0;
+    let stationsX = 0, stationWPx2 = 0;
+    let getPackingSlotCenterY = (_s: number, _c: number) => 0;
+    const parkingPositions: { px: number; py: number; mx: number; my: number }[] = [];
+    let deliveryParkMX = 0, deliveryParkMY = 0;
+
     if (showAGVSystem) {
     // ====== Packing Stations: vertical column parallel to AMR path, with gaps ======
     const stationWPx = stationW_m * ppm;
+    stationWPx2 = stationWPx;
     const stationHPx = stationH_m * ppm;
     const stationGapPx = stationGap_m * ppm;
     const totalStationsH = stations * stationHPx + (stations - 1) * stationGapPx;
     const packingPathGap = 0.8 * ppm; // gap between packing stations and AMR path
-    const stationsX = pathCenterLeft - amrPathWPx / 2 - packingPathGap - stationWPx;
+    stationsX = pathCenterLeft - amrPathWPx / 2 - packingPathGap - stationWPx;
     const stationsStartY = startY + layoutH / 2 - totalStationsH / 2;
     const packingInnerInset = 1;
     const packingSlotCellW = Math.min(slotW * 0.9, stationWPx - packingInnerInset * 2);
@@ -1448,7 +1456,7 @@ export function Warehouse2D({
       ),
     );
     const packingStackH = packingSlotsPerStation * packingSlotCellH + (packingSlotsPerStation - 1) * packingSlotGap;
-    const getPackingSlotCenterY = (stationIdx: number, slotIdx: number) => {
+    getPackingSlotCenterY = (stationIdx: number, slotIdx: number) => {
       const stationY = stationsStartY + stationIdx * (stationHPx + stationGapPx);
       const slotPadY = Math.max(packingInnerInset, (stationHPx - packingStackH) / 2);
       return stationY + slotPadY + slotIdx * (packingSlotCellH + packingSlotGap) + packingSlotCellH / 2;
@@ -1594,14 +1602,14 @@ export function Warehouse2D({
 
     if (showAGVSystem) {
     // ====== Single Delivery Station at top near x=5m, y=2m ======
-    const deliveryWPx = deliveryW_m * ppm;
-    const deliveryHPx = deliveryH_m * ppm;
+    deliveryWPx = deliveryW_m * ppm;
+    deliveryHPx = deliveryH_m * ppm;
     // Place delivery station just above the top AMR path with a small gap
     const deliveryCenterPx_x = startX + layoutW - deliveryWPx / 2 - 6 * ppm;
     const deliveryGapFromTopPathPx = 0.8 * ppm;
     const deliveryBottomEdgeY = pathCenterTop - laneOffsetPx - deliveryGapFromTopPathPx;
-    const deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
-    const deliveryDy = deliveryBottomEdgeY - deliveryHPx;
+    deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
+    deliveryDy = deliveryBottomEdgeY - deliveryHPx;
 
     // Station base/conveyor (bottom edge)
     ctx.fillStyle = "hsl(160, 30%, 55%)";
@@ -1684,7 +1692,6 @@ export function Warehouse2D({
     const parkingStartY = startY + layoutH / 2 - totalParkingH / 2;
 
     // Store parking positions for idle placement
-    const parkingPositions: { px: number; py: number; mx: number; my: number }[] = [];
 
     for (let p = 0; p < agvCount; p++) {
       const py = parkingStartY + p * (parkingSpotHPx + parkingGapPx);
@@ -1790,8 +1797,8 @@ export function Warehouse2D({
     ctx.fill();
 
     // Delivery parking position in meters
-    const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
-    const deliveryParkMY = (delParkCenterY - startY) / ppm;
+    deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
+    deliveryParkMY = (delParkCenterY - startY) / ppm;
     } // end parking
 
 

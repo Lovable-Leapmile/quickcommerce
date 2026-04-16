@@ -1389,6 +1389,19 @@ export function Warehouse2D({
     ctx.closePath();
     ctx.stroke();
 
+    // ====== Lane Labels: A (outer) and B (inner) ======
+    ctx.font = `bold ${Math.max(10, ppm * 0.25)}px 'Plus Jakarta Sans', sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    // Label on the top horizontal path
+    const labelX = (pathCenterLeft + pathCenterRight) / 2;
+    // A = outer lane (top of top path)
+    ctx.fillStyle = "hsl(150, 80%, 55%)";
+    ctx.fillText("A", labelX, pathCenterTop - laneOffsetPx);
+    // B = inner lane (bottom of top path)
+    ctx.fillStyle = "hsl(200, 80%, 55%)";
+    ctx.fillText("B", labelX, pathCenterTop + laneOffsetPx);
+
     // Internal horizontal crossings through gaps
     for (let a = 1; a < numAisles; a++) {
       if (a % 2 === 0) {
@@ -2004,9 +2017,9 @@ export function Warehouse2D({
 
     horizontalPathsM.push(pathBottomM);
 
-    const getAgvLane = (agvId: number) => {
-      const agvIdx = agvList.findIndex((agv) => agv.agv_id === agvId);
-      return agvIdx >= 0 ? agvIdx % 2 : 0;
+    // All AGVs default to lane 0 (Lane A = outer). They only switch to lane 1 (B = inner) dynamically when blocked.
+    const getAgvLane = (_agvId: number) => {
+      return 0;
     };
     const laneOffsetFor = (lane: number) => (lane === 0 ? -laneOffsetM : laneOffsetM);
     const laneX = (side: "left" | "right", lane: number) =>

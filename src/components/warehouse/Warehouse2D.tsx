@@ -1984,9 +1984,8 @@ export function Warehouse2D({
 
     // Dedicated delivery AGV parking near delivery area (separate from main parking column).
     const deliveryAgvId = getDeliveryAgvId();
-    const deliveryBranchPathMY = pathTopM - laneOffsetM;
-    const deliveryParkingMX = laneX("right", 0);
-    const deliveryParkingMY = deliveryBranchPathMY;
+    const deliveryParkingMX = deliveryParkMX;
+    const deliveryParkingMY = deliveryParkMY;
 
     const appendWaypoint = (points: { mx: number; my: number }[], point: { mx: number; my: number }) => {
       const last = points[points.length - 1];

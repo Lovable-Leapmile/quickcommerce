@@ -71,10 +71,13 @@ export default function Index() {
   const activeId = activeProject?.id ?? "";
   const projectsLoading = storesLoading;
 
-  const switchProject = useCallback((id: string) => {
-    const store = stores.find((s) => String(s.store_id) === id);
-    if (store) setActiveStoreId(store.store_id);
-  }, [stores]);
+  const switchProject = useCallback(
+    (id: string) => {
+      const store = stores.find((s) => String(s.store_id) === id);
+      if (store) setActiveStoreId(store.store_id);
+    },
+    [stores],
+  );
 
   const [movementOrders, setMovementOrders] = useState<MovementOrder[]>([]);
   const [movementOrdersKey, setMovementOrdersKey] = useState(0);
@@ -164,12 +167,9 @@ export default function Index() {
     setIsAMRAnimating(false);
   }, []);
 
-  const handleStationCountChange = useCallback(
-    (_count: number) => {
-      // Station count comes from store config, read-only
-    },
-    [],
-  );
+  const handleStationCountChange = useCallback((_count: number) => {
+    // Station count comes from store config, read-only
+  }, []);
 
   const handleComponentClick = useCallback((type: ComponentType) => {
     setEditingComponent(type);
@@ -362,7 +362,6 @@ export default function Index() {
         styles={componentStyles}
         onStyleChange={setComponentStyles}
       />
-
     </div>
   );
 }

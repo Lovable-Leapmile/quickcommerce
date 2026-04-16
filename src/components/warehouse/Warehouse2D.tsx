@@ -2484,6 +2484,8 @@ export function Warehouse2D({
             appendWaypoint(srcWps, { mx: curMX, my: topPathMY });
             // Go horizontally on top path to optimal vertical lane
             appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: topPathMY });
+            // Go to left vertical lane if not already there (stations are on the left)
+            appendWaypoint(srcWps, { mx: leftLaneMX, my: topPathMY });
           } else {
             const curSegment: IdleSegment =
               amrSt.currentSegmentKind === "station-branch"
@@ -2496,8 +2498,8 @@ export function Warehouse2D({
             const strictRoute = buildRouteToPoint(curMX, curMY, curSegment, srcMX, srcMY, agvLaneLocal);
             strictRoute.forEach((point) => appendWaypoint(srcWps, point));
           }
-          // Go vertically on optimal lane to station branch Y
-          appendWaypoint(srcWps, { mx: optimalSrcLaneMX, my: stationBranchMY });
+          // Go vertically on left lane to station branch Y
+          appendWaypoint(srcWps, { mx: leftLaneMX, my: stationBranchMY });
           // Go horizontally on station branch to packing station
           appendWaypoint(srcWps, { mx: srcMX, my: stationBranchMY });
           appendWaypoint(srcWps, { mx: srcMX, my: srcMY });

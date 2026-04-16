@@ -21,6 +21,8 @@ interface Warehouse2DProps {
   onDeliveryComplete?: () => void;
   agvs: AGVInfo[];
   amrSpeed?: number;
+  showAGVSystem?: boolean;
+  gapBetweenPairs?: number;
 }
 
 const PACKING_STATIONS_COUNT = 3;
@@ -30,7 +32,7 @@ const SHUTTLE_DROP_HOLD_S = 0.32;
 const SLOT_W_M = 0.4;
 const SLOT_D_M = 0.6;
 const AISLE_W_M = 0.5;
-const GAP_BETWEEN_PAIRS = 1.2;
+const DEFAULT_GAP_BETWEEN_PAIRS = 1.2;
 const AMR_PATH_WIDTH_M = 0.5;
 const PATH_MARGIN_M = 0.6; // gap between warehouse and AMR path
 const LANE_GAP_M = 0.6; // distance between the two lane center lines (wider for better collision avoidance)
@@ -40,15 +42,15 @@ const PARKING_SPOT_H_M = 0.6; // height of each parking spot
 const PARKING_GAP_M = 0.6; // gap between parking spots
 const PARKING_MARGIN_M = 0.8; // gap between right AMR path and parking area
 
-function aisleYOffset(a: number, numAisles: number, aisleGroupH: number): number {
+function aisleYOffset(a: number, numAisles: number, aisleGroupH: number, gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS): number {
   const pairIdx = Math.floor(a / 2);
   const withinPair = a % 2;
-  return pairIdx * (2 * aisleGroupH + GAP_BETWEEN_PAIRS) + withinPair * aisleGroupH;
+  return pairIdx * (2 * aisleGroupH + gapBetweenPairs) + withinPair * aisleGroupH;
 }
 
-function totalAisleSpan(numAisles: number, aisleGroupH: number): number {
+function totalAisleSpan(numAisles: number, aisleGroupH: number, gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS): number {
   if (numAisles <= 0) return 0;
-  const lastOffset = aisleYOffset(numAisles - 1, numAisles, aisleGroupH);
+  const lastOffset = aisleYOffset(numAisles - 1, numAisles, aisleGroupH, gapBetweenPairs);
   return lastOffset + aisleGroupH;
 }
 
@@ -115,6 +117,8 @@ export function Warehouse2D({
   onDeliveryComplete,
   agvs,
   amrSpeed: amrSpeedProp = 0.5,
+  showAGVSystem = true,
+  gapBetweenPairs = DEFAULT_GAP_BETWEEN_PAIRS,
 }: Warehouse2DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1385,6 +1389,7 @@ export function Warehouse2D({
       }
     };
 
+    if (showAGVSystem) {
     // Perimeter dual-lanes as two closed loops (prevents corner gaps/overflow)
     ctx.strokeStyle = pathColor;
     ctx.lineWidth = LANE_LINE_W_PX;
@@ -1411,18 +1416,30 @@ export function Warehouse2D({
     // Internal horizontal crossings through gaps
     for (let a = 1; a < numAisles; a++) {
       if (a % 2 === 0) {
-        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH) * ppm - (GAP_BETWEEN_PAIRS * ppm) / 2;
+        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH, gapBetweenPairs) * ppm - (gapBetweenPairs * ppm) / 2;
         drawDualLane(pathCenterLeft, gapCenterY, pathCenterRight, gapCenterY, true);
       }
     }
+    } // end AMR paths
 
+
+
+    // Hoisted declarations for cross-block variable access
+    let deliveryWPx = 0, deliveryHPx = 0, deliveryDx = 0, deliveryDy = 0;
+    let stationsX = 0, stationWPx2 = 0;
+    let getPackingSlotCenterY = (_s: number, _c: number) => 0;
+    const parkingPositions: { px: number; py: number; mx: number; my: number }[] = [];
+    let deliveryParkMX = 0, deliveryParkMY = 0;
+
+    if (showAGVSystem) {
     // ====== Packing Stations: vertical column parallel to AMR path, with gaps ======
     const stationWPx = stationW_m * ppm;
+    stationWPx2 = stationWPx;
     const stationHPx = stationH_m * ppm;
     const stationGapPx = stationGap_m * ppm;
     const totalStationsH = stations * stationHPx + (stations - 1) * stationGapPx;
     const packingPathGap = 0.8 * ppm; // gap between packing stations and AMR path
-    const stationsX = pathCenterLeft - amrPathWPx / 2 - packingPathGap - stationWPx;
+    stationsX = pathCenterLeft - amrPathWPx / 2 - packingPathGap - stationWPx;
     const stationsStartY = startY + layoutH / 2 - totalStationsH / 2;
     const packingInnerInset = 1;
     const packingSlotCellW = Math.min(slotW * 0.9, stationWPx - packingInnerInset * 2);
@@ -1439,7 +1456,7 @@ export function Warehouse2D({
       ),
     );
     const packingStackH = packingSlotsPerStation * packingSlotCellH + (packingSlotsPerStation - 1) * packingSlotGap;
-    const getPackingSlotCenterY = (stationIdx: number, slotIdx: number) => {
+    getPackingSlotCenterY = (stationIdx: number, slotIdx: number) => {
       const stationY = stationsStartY + stationIdx * (stationHPx + stationGapPx);
       const slotPadY = Math.max(packingInnerInset, (stationHPx - packingStackH) / 2);
       return stationY + slotPadY + slotIdx * (packingSlotCellH + packingSlotGap) + packingSlotCellH / 2;
@@ -1579,16 +1596,20 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     drawReadableText("Packing Area", stationsX - 12, stationsStartY + totalStationsH / 2, -Math.PI / 2);
+    } // end packing
 
+
+
+    if (showAGVSystem) {
     // ====== Single Delivery Station at top near x=5m, y=2m ======
-    const deliveryWPx = deliveryW_m * ppm;
-    const deliveryHPx = deliveryH_m * ppm;
+    deliveryWPx = deliveryW_m * ppm;
+    deliveryHPx = deliveryH_m * ppm;
     // Place delivery station just above the top AMR path with a small gap
     const deliveryCenterPx_x = startX + layoutW - deliveryWPx / 2 - 6 * ppm;
     const deliveryGapFromTopPathPx = 0.8 * ppm;
     const deliveryBottomEdgeY = pathCenterTop - laneOffsetPx - deliveryGapFromTopPathPx;
-    const deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
-    const deliveryDy = deliveryBottomEdgeY - deliveryHPx;
+    deliveryDx = deliveryCenterPx_x - deliveryWPx / 2;
+    deliveryDy = deliveryBottomEdgeY - deliveryHPx;
 
     // Station base/conveyor (bottom edge)
     ctx.fillStyle = "hsl(160, 30%, 55%)";
@@ -1656,8 +1677,12 @@ export function Warehouse2D({
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
     drawReadableText("Delivery Area", deliveryDx + deliveryWPx / 2, deliveryDy - 8);
+    } // end delivery
 
 
+
+
+    if (showAGVSystem) {
     // ====== AGV Parking Area: right side, vertical column of parking spots ======
     const parkingSpotWPx = PARKING_SPOT_W_M * ppm;
     const parkingSpotHPx = PARKING_SPOT_H_M * ppm;
@@ -1667,7 +1692,6 @@ export function Warehouse2D({
     const parkingStartY = startY + layoutH / 2 - totalParkingH / 2;
 
     // Store parking positions for idle placement
-    const parkingPositions: { px: number; py: number; mx: number; my: number }[] = [];
 
     for (let p = 0; p < agvCount; p++) {
       const py = parkingStartY + p * (parkingSpotHPx + parkingGapPx);
@@ -1773,8 +1797,11 @@ export function Warehouse2D({
     ctx.fill();
 
     // Delivery parking position in meters
-    const deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
-    const deliveryParkMY = (delParkCenterY - startY) / ppm;
+    deliveryParkMX = (delParkX + parkingSpotWPx / 2 - startX) / ppm;
+    deliveryParkMY = (delParkCenterY - startY) / ppm;
+    } // end parking
+
+
 
     let currentY = startY;
 
@@ -1991,13 +2018,14 @@ export function Warehouse2D({
       }
 
       currentY += aisleGroupH * ppm;
-      if (a % 2 === 1 && a < numAisles - 1) currentY += GAP_BETWEEN_PAIRS * ppm;
+      if (a % 2 === 1 && a < numAisles - 1) currentY += gapBetweenPairs * ppm;
     }
 
     // ====== Helper: convert pixel world coords to meters relative to warehouse origin ======
     const toMX = (px: number) => (px - startX) / ppm;
     const toMY = (py: number) => (py - startY) / ppm;
 
+    if (showAGVSystem) {
     // ====== Initialize idle positions for all AGVs in the map ======
     for (const agv of agvList) {
       if (!amrAnimMapRef.current.has(agv.agv_id)) {
@@ -2017,7 +2045,7 @@ export function Warehouse2D({
 
     for (let a = 1; a < numAisles; a++) {
       if (a % 2 === 0) {
-        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH) * ppm - (GAP_BETWEEN_PAIRS * ppm) / 2;
+        const gapCenterY = startY + aisleYOffset(a, numAisles, aisleGroupH, gapBetweenPairs) * ppm - (gapBetweenPairs * ppm) / 2;
         horizontalPathsM.push(toMY(gapCenterY));
       }
     }
@@ -2340,7 +2368,7 @@ export function Warehouse2D({
         const pickupMX = toMX(rackCenterXPx);
         const pickupLaneMY = getAgvPickupLaneMY(rackRow, agvLaneLocal);
 
-        const aisleStartYPx = startY + aisleYOffset(rackAisleIdx, numAisles, aisleGroupH) * ppm;
+        const aisleStartYPx = startY + aisleYOffset(rackAisleIdx, numAisles, aisleGroupH, gapBetweenPairs) * ppm;
         const trayCenterYPx =
           rackSide === "top"
             ? aisleStartYPx + (deep - rackDeep) * slotD + slotD / 2
@@ -2746,6 +2774,9 @@ export function Warehouse2D({
       ctx.fillText(label, 0, lblBgY + lblBgH / 2);
       ctx.restore();
     }
+
+
+    } // end AGV system
 
     // Store grid info for click handler
     gridInfoRef.current = { ppm, siteX, siteY };

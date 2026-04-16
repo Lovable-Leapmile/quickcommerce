@@ -341,6 +341,8 @@ export default function Index() {
             onDeliveryComplete={handleDeliveryComplete}
             agvs={agvs}
             amrSpeed={amrSpeed}
+            showAGVSystem={activeStoreId !== 3}
+            gapBetweenPairs={activeStoreId === 3 ? 1.5 : 1.2}
           />
           <OrderOverlay
             orders={combinedOrders}

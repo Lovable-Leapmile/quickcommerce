@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_WAREHOUSE_API_BASE || "/api/warehouse";
+const API_BASE = import.meta.env.VITE_BASE_URL || "http://sudarshan.leapmile.com:8000";
 
 type WarehouseEndpoint = "agv" | "orders" | "orders_agv" | "orders_shuttle" | "stores";
 

@@ -1,1 +1,4 @@
-project_id = "fbqvdemwnhjzyikviuab"
+project_id = "lhgfhiybtvufggfsiqub"
+
+[functions.warehouse-proxy]
+verify_jwt = false

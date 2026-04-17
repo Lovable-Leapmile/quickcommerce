@@ -14,42 +14,7 @@ export type Database = {
   }
   public: {
     Tables: {
-      warehouse_projects: {
-        Row: {
-          component_styles: Json
-          created_at: string
-          id: string
-          name: string
-          params: Json
-          updated_at: string
-          user_id: string
-          warehouse_offset_2d: Json
-          warehouse_offset_3d: Json
-        }
-        Insert: {
-          component_styles?: Json
-          created_at?: string
-          id?: string
-          name?: string
-          params?: Json
-          updated_at?: string
-          user_id: string
-          warehouse_offset_2d?: Json
-          warehouse_offset_3d?: Json
-        }
-        Update: {
-          component_styles?: Json
-          created_at?: string
-          id?: string
-          name?: string
-          params?: Json
-          updated_at?: string
-          user_id?: string
-          warehouse_offset_2d?: Json
-          warehouse_offset_3d?: Json
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Views: {
       [_ in never]: never

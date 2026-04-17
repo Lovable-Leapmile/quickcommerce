@@ -59,7 +59,7 @@ function CollapsibleSection({
 
 export default function Index() {
   // Fetch all stores from API as projects
-  const { stores, loading: storesLoading } = useStores();
+  const { stores, loading: storesLoading, error: storesError } = useStores();
   const [activeStoreId, setActiveStoreId] = useState<number>(1);
 
   const projects = stores.map((s) => ({
@@ -200,8 +200,10 @@ export default function Index() {
 
   if (!activeProject) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <p className="text-muted-foreground">No stores found</p>
+      <div className="flex h-screen items-center justify-center bg-background px-6 text-center">
+        <p className="text-muted-foreground">
+          {storesError || "No stores found"}
+        </p>
       </div>
     );
   }

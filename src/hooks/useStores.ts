@@ -25,12 +25,28 @@ export function useStores() {
       try {
         setLoading(true);
         setError(null);
+
         const res = await fetch(API_URL, {
           headers: { accept: "application/json" },
         });
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
+
+        if (!res.ok) {
+          throw new Error(`API error: ${res.status}`);
+        }
+
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("application/json")) {
+          const text = await res.text();
+          const isHtmlResponse = text.trimStart().startsWith("<!doctype") || text.trimStart().startsWith("<html");
+          throw new Error(
+            isHtmlResponse
+              ? "API endpoint returned HTML instead of JSON."
+              : "API endpoint returned an invalid response.",
+          );
+        }
+
         const data = await res.json();
-        // Handle both list format {items:[...]} and single store object
+
         if (Array.isArray(data.items)) {
           setStores(data.items);
         } else if (data.store_id) {
@@ -40,11 +56,13 @@ export function useStores() {
         }
       } catch (err: any) {
         console.error("Failed to fetch stores:", err);
-        setError(err.message);
+        setStores([]);
+        setError(err?.message || "Failed to load stores.");
       } finally {
         setLoading(false);
       }
     };
+
     fetchStores();
   }, []);
 

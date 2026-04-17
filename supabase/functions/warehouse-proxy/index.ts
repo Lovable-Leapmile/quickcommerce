@@ -1,42 +1,44 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+// HTTPS -> HTTP proxy so the hosted site can reach the warehouse API
+// (browsers block direct HTTP fetches from HTTPS pages — mixed content).
+// All data still comes from http://sudarshan.leapmile.com:8000 only.
 
 const BASE = "http://sudarshan.leapmile.com:8000";
 
-const endpointMap: Record<string, string> = {
-  agv: "/agv",
-  orders: "/orders",
-  orders_agv: "/orders/agv",
-  orders_shuttle: "/orders/shuttle",
-  stores: "/store",
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const url = new URL(req.url);
-    const endpoint = url.searchParams.get("endpoint") || "";
-    const id = url.searchParams.get("id") || "1";
+    // Strip the function prefix: /functions/v1/warehouse-proxy/<rest>
+    const idx = url.pathname.indexOf("/warehouse-proxy");
+    const rest = idx >= 0 ? url.pathname.slice(idx + "/warehouse-proxy".length) : "";
+    const target = `${BASE}${rest || "/"}${url.search}`;
 
-    const path = endpointMap[endpoint] ?? `/store/${id}`;
-
-    const res = await fetch(`${BASE}${path}`, {
+    const upstream = await fetch(target, {
+      method: req.method,
       headers: { accept: "application/json" },
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : await req.text(),
     });
 
-    const data = await res.json();
-
-    return new Response(JSON.stringify(data), {
-      headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+    const body = await upstream.text();
+    return new Response(body, {
+      status: upstream.status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": upstream.headers.get("content-type") ?? "application/json",
+        "Cache-Control": "no-store",
+      },
     });
-  } catch (err: unknown) {
+  } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
